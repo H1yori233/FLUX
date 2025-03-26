@@ -7,6 +7,7 @@ import commonRaw from './common.wgsl?raw';
 import naiveVertRaw from './naive.vs.wgsl?raw';
 import naiveFragRaw from './naive.fs.wgsl?raw';
 
+import depthFragRaw from './depth.fs.wgsl?raw';
 import forwardPlusFragRaw from './forward_plus.fs.wgsl?raw';
 
 import clusteredDeferredFragRaw from './clustered_deferred.fs.wgsl?raw';
@@ -48,6 +49,7 @@ function processShaderRaw(raw: string) {
 export const naiveVertSrc: string = processShaderRaw(naiveVertRaw);
 export const naiveFragSrc: string = processShaderRaw(naiveFragRaw);
 
+export const depthFragSrc: string = processShaderRaw(depthFragRaw);
 export const forwardPlusFragSrc: string = processShaderRaw(forwardPlusFragRaw);
 
 export const clusteredDeferredFragSrc: string = processShaderRaw(clusteredDeferredFragRaw);
