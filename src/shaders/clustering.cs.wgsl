@@ -108,15 +108,15 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     clusterSet.clusters[index].max = max_bounds;
     
     // Assigning lights to clusters:
-    clusterSet.clusters[index].lightCount = 0u;
+    clusterSet.clusters[index].numLights = 0u;
     for (var lightIdx = 0u; lightIdx < lightSet.numLights; lightIdx++) {
         if (lightIntersect(lightSet.lights[lightIdx].pos, 
                            min_bounds, max_bounds, 
                            ${lightRadius})) {
-            let count = clusterSet.clusters[index].lightCount;
-            if (clusterSet.clusters[index].lightCount < 32u) {
+            let count = clusterSet.clusters[index].numLights;
+            if (clusterSet.clusters[index].numLights < 32u) {
                 clusterSet.clusters[index].lightIndices[count] = lightIdx;
-                clusterSet.clusters[index].lightCount += 1u;
+                clusterSet.clusters[index].numLights += 1u;
             }
         }
     }
