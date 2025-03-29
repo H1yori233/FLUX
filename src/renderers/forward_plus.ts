@@ -5,12 +5,22 @@ import { Stage } from '../stage/stage';
 export class ForwardPlusRenderer extends renderer.Renderer {
     // TODO-2: add layouts, pipelines, textures, etc. needed for Forward+ here
     // you may need extra uniforms such as the camera view matrix and the canvas resolution
+    
+    // clusterParams: {
+    //     numTilesX: number;
+    //     numTilesY: number;
+    //     numSlices: number;
+    //     screenWidth: number;
+    //     screenHeight: number;
+    //     nearZ: number;
+    //     farZ: number;
+    // };
+
     sceneUniformsBindGroupLayout: GPUBindGroupLayout;
     sceneUniformsBindGroup: GPUBindGroup;
 
     depthTexture: GPUTexture;
     depthTextureView: GPUTextureView;
-
     pipeline: GPURenderPipeline;
 
     constructor(stage: Stage) {
@@ -74,7 +84,7 @@ export class ForwardPlusRenderer extends renderer.Renderer {
                     label: "naive vert shader",
                     code: shaders.naiveVertSrc
                 }),
-                buffers: [ renderer.vertexBufferLayout ]
+                buffers: [renderer.vertexBufferLayout]
             },
             fragment: {
                 module: renderer.device.createShaderModule({
@@ -96,7 +106,7 @@ export class ForwardPlusRenderer extends renderer.Renderer {
         // - run the main rendering pass, using the computed clusters for efficient lighting
         const encoder = renderer.device.createCommandEncoder();
         const canvasTextureView = renderer.context.getCurrentTexture().createView();
-
+        
         const renderPass = encoder.beginRenderPass({
             label: "depth pre pass",
             colorAttachments: [
@@ -129,6 +139,8 @@ export class ForwardPlusRenderer extends renderer.Renderer {
         });
 
         renderPass.end();
+
+        this.lights.doLightClustering(encoder);
 
         renderer.device.queue.submit([encoder.finish()]);
     }
