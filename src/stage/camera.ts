@@ -3,7 +3,7 @@ import { toRadians } from "../math_util";
 import { device, canvas, fovYDegrees, aspectRatio } from "../renderer";
 
 class CameraUniforms {
-    readonly buffer = new ArrayBuffer(16 * 4 * 3);
+    readonly buffer = new ArrayBuffer(16 * 4 * 5);
     private readonly floatView = new Float32Array(this.buffer);
 
     set viewProjMat(mat: Float32Array) {
@@ -18,6 +18,22 @@ class CameraUniforms {
 
     set invViewProjMat(mat: Float32Array) {
         this.floatView.set(mat, 32);
+    }
+    
+    set screenWidth(width: number) {
+        this.floatView[48] = width;
+    }
+    
+    set screenHeight(height: number) {
+        this.floatView[49] = height;
+    }
+    
+    set nearZ(near: number) {
+        this.floatView[50] = near;
+    }
+    
+    set farZ(far: number) {
+        this.floatView[51] = far;
     }
 }
 
@@ -148,6 +164,11 @@ export class Camera {
         this.uniforms.viewMat = viewMat;
         const invViewProjMat = mat4.inverse(viewProjMat);
         this.uniforms.invViewProjMat = invViewProjMat;
+        
+        this.uniforms.screenWidth = canvas.width;
+        this.uniforms.screenHeight = canvas.height;
+        this.uniforms.nearZ = Camera.nearPlane;
+        this.uniforms.farZ = Camera.farPlane;
 
         // TODO-1.1: upload `this.uniforms.buffer` (host side) to `this.uniformsBuffer` (device side)
         // check `lights.ts` for examples of using `device.queue.writeBuffer()`

@@ -6,16 +6,6 @@ export class ForwardPlusRenderer extends renderer.Renderer {
     // TODO-2: add layouts, pipelines, textures, etc. needed for Forward+ here
     // you may need extra uniforms such as the camera view matrix and the canvas resolution
 
-    // clusterParams: {
-    //     numTilesX: number;
-    //     numTilesY: number;
-    //     numSlices: number;
-    //     screenWidth: number;
-    //     screenHeight: number;
-    //     nearZ: number;
-    //     farZ: number;
-    // };
-
     sceneUniformsBindGroupLayout: GPUBindGroupLayout;
     sceneUniformsBindGroup: GPUBindGroup;
 
@@ -47,11 +37,6 @@ export class ForwardPlusRenderer extends renderer.Renderer {
                     binding: 2,
                     visibility: GPUShaderStage.FRAGMENT,
                     buffer: { type: "read-only-storage" }
-                },
-                { // clusterParams
-                    binding: 3,
-                    visibility: GPUShaderStage.FRAGMENT,
-                    buffer: { type: "uniform" }
                 }
             ]
         });
@@ -71,10 +56,6 @@ export class ForwardPlusRenderer extends renderer.Renderer {
                 {
                     binding: 2,
                     resource: { buffer: this.lights.clusterSetStorageBuffer }
-                },
-                {
-                    binding: 3,
-                    resource: { buffer: this.lights.clusterParamsUniformBuffer }
                 }
             ]
         });
@@ -85,41 +66,8 @@ export class ForwardPlusRenderer extends renderer.Renderer {
             usage: GPUTextureUsage.RENDER_ATTACHMENT
         });
         this.depthTextureView = this.depthTexture.createView();
-
-        // this.pipeline = renderer.device.createRenderPipeline({
-        //     layout: renderer.device.createPipelineLayout({
-        //         label: "naive pipeline layout",
-        //         bindGroupLayouts: [
-        //             this.sceneUniformsBindGroupLayout,
-        //             renderer.modelBindGroupLayout,
-        //             renderer.materialBindGroupLayout
-        //         ]
-        //     }),
-        //     depthStencil: {
-        //         depthWriteEnabled: true,
-        //         depthCompare: "less",
-        //         format: "depth24plus"
-        //     },
-        //     vertex: {
-        //         module: renderer.device.createShaderModule({
-        //             label: "naive vert shader",
-        //             code: shaders.naiveVertSrc
-        //         }),
-        //         buffers: [renderer.vertexBufferLayout]
-        //     },
-        //     fragment: {
-        //         module: renderer.device.createShaderModule({
-        //             label: "depth shader",
-        //             code: shaders.depthFragSrc,
-        //         }),
-        //         targets: [
-        //             {
-        //                 format: renderer.canvasFormat,
-        //             }
-        //         ]
-        //     }
-        // });
-
+        
+        // Pipeline Setting
         this.depthPrePassPipeline = renderer.device.createRenderPipeline({
             layout: renderer.device.createPipelineLayout({
                 label: "depth pre-pass pipeline layout",
@@ -199,7 +147,6 @@ export class ForwardPlusRenderer extends renderer.Renderer {
             }
         });
         depthPrePass.setPipeline(this.depthPrePassPipeline);
-
         depthPrePass.setBindGroup(shaders.constants.bindGroup_scene, this.sceneUniformsBindGroup);
 
         this.scene.iterate(node => {

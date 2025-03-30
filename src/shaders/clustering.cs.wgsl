@@ -2,7 +2,6 @@
 @group(${bindGroup_scene}) @binding(0) var<uniform> camera: CameraUniforms;
 @group(${bindGroup_scene}) @binding(1) var<storage, read_write> clusterSet: ClusterSet;
 @group(${bindGroup_scene}) @binding(2) var<storage, read> lightSet: LightSet;
-@group(${bindGroup_scene}) @binding(3) var<uniform> clusterParams: ClusterParams;
 
 // ------------------------------------
 // Calculating cluster bounds:
@@ -51,40 +50,40 @@ fn lightIntersect(lightPos: vec3<f32>,
 
 @compute @workgroup_size(8, 8, 1)
 fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
-    if (global_id.x >= clusterParams.numClustersX || 
-        global_id.y >= clusterParams.numClustersY || 
-        global_id.z >= clusterParams.numClustersZ) {
+    if (global_id.x >= ${numClustersX} || 
+        global_id.y >= ${numClustersY} || 
+        global_id.z >= ${numClustersZ}) {
         return;
     }
     
     let index = global_id.x + 
-                global_id.y * clusterParams.numClustersX + 
-                global_id.z * clusterParams.numClustersX * clusterParams.numClustersY;
+                global_id.y * ${numClustersX} + 
+                global_id.z * ${numClustersX} * ${numClustersY};
     
-    let cluster_size_x = clusterParams.screenWidth / f32(clusterParams.numClustersX);
-    let cluster_size_y = clusterParams.screenHeight / f32(clusterParams.numClustersY);
+    let cluster_size_x = camera.screenWidth / f32(${numClustersX});
+    let cluster_size_y = camera.screenHeight / f32(${numClustersY});
     
     let min_x = f32(global_id.x) * cluster_size_x;
     let max_x = min_x + cluster_size_x;
     let min_y = f32(global_id.y) * cluster_size_y;
     let max_y = min_y + cluster_size_y;
 
-    let tileNear    = clusterParams.nearZ * 
-                      pow(clusterParams.farZ / clusterParams.nearZ, 
-                          f32(global_id.z) / f32(clusterParams.numClustersZ));
-    let tileFar     = clusterParams.nearZ * 
-                      pow(clusterParams.farZ / clusterParams.nearZ, 
-                          f32(global_id.z + 1u) / f32(clusterParams.numClustersZ));
-    let min_z = (tileNear - clusterParams.nearZ) / 
-                (clusterParams.farZ - clusterParams.nearZ);
-    let max_z = (tileFar -  clusterParams.nearZ) / 
-                (clusterParams.farZ - clusterParams.nearZ);
+    let tileNear    = camera.nearZ * 
+                      pow(camera.farZ / camera.nearZ, 
+                      f32(global_id.z) / f32(${numClustersZ}));
+    let tileFar     = camera.nearZ * 
+                      pow(camera.farZ / camera.nearZ, 
+                      f32(global_id.z + 1u) / f32(${numClustersZ}));
+    let min_z = (tileNear - camera.nearZ) / 
+                (camera.farZ - camera.nearZ);
+    let max_z = (tileFar -  camera.nearZ) / 
+                (camera.farZ - camera.nearZ);
 
     // from (0, width) to (-1, 1)
-    let min_x_ndc = min_x / clusterParams.screenWidth * 2.0 - 1.0;
-    let max_x_ndc = max_x / clusterParams.screenWidth * 2.0 - 1.0;
-    let min_y_ndc = 1.0 - (min_y / clusterParams.screenHeight * 2.0);
-    let max_y_ndc = 1.0 - (max_y / clusterParams.screenHeight * 2.0);
+    let min_x_ndc = min_x / camera.screenWidth * 2.0 - 1.0;
+    let max_x_ndc = max_x / camera.screenWidth * 2.0 - 1.0;
+    let min_y_ndc = 1.0 - (min_y / camera.screenHeight * 2.0);
+    let max_y_ndc = 1.0 - (max_y / camera.screenHeight * 2.0);
     
     var corners: array<vec3f, 8>;
     corners[0] = calculateViewPos(min_x_ndc, min_y_ndc, min_z);

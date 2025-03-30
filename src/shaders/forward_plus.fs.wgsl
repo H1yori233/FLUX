@@ -4,7 +4,6 @@
 @group(${bindGroup_scene}) @binding(0) var<uniform> camera: CameraUniforms;
 @group(${bindGroup_scene}) @binding(1) var<storage, read> lightSet: LightSet;
 @group(${bindGroup_scene}) @binding(2) var<storage, read> clusterSet: ClusterSet;
-@group(${bindGroup_scene}) @binding(3) var<uniform> clusterParams: ClusterParams;
 
 @group(${bindGroup_material}) @binding(0) var diffuseTex: texture_2d<f32>;
 @group(${bindGroup_material}) @binding(1) var diffuseTexSampler: sampler;
@@ -33,23 +32,29 @@ struct FragmentInput
 fn calculateClusterIndex(fragPos: vec3f) -> u32 {
     // Convert in.pos to NDC (-1, 1)
     let screenPos  = camera.viewProjMat * vec4f(fragPos, 1.0);
-    let posNDC = screenPos .xyz / screenPos .w;
+    let posNDC = screenPos.xyz / screenPos.w;
 
     // Get Index: from (-1, 1) to (0, number)
-    let xCluster    = u32((posNDC.x * 0.5 + 0.5) * f32(clusterParams.numClustersX));
-    let yCluster    = u32((1.0 - (posNDC.y * 0.5 + 0.5)) * f32(clusterParams.numClustersY));
+    let xCluster    = u32((posNDC.x * 0.5 + 0.5) * f32(${numClustersX}));
+    let yCluster    = u32((1.0 - (posNDC.y * 0.5 + 0.5)) * f32(${numClustersY}));
     let zDist       = length(fragPos);
-    let zCluster    = u32(log(zDist / clusterParams.nearZ) / 
-                      log(clusterParams.farZ / clusterParams.nearZ) * 
-                      f32(clusterParams.numClustersZ));
+    let zCluster    = u32(log(zDist / camera.nearZ) / 
+                      log(camera.farZ / camera.nearZ) * 
+                      f32(${numClustersZ}));
 
-    let x = min(xCluster, clusterParams.numClustersX - 1u);
-    let y = min(yCluster, clusterParams.numClustersY - 1u);
-    let z = min(zCluster, clusterParams.numClustersZ - 1u);
+    let x = min(xCluster, ${numClustersX} - 1u);
+    let y = min(yCluster, ${numClustersY} - 1u);
+    let z = min(zCluster, ${numClustersZ} - 1u);
 
     return x +
-           y * clusterParams.numClustersX +
-           z * clusterParams.numClustersX * clusterParams.numClustersY; 
+           y * ${numClustersX} +
+           z * ${numClustersX} * ${numClustersY};
+}
+
+fn getDepthDebugColor(fragPos: vec3f) -> vec3f {
+    var depth = length(fragPos);
+    var normalizedDepth = depth / 30.0f;
+    return vec3f(normalizedDepth);
 }
 
 fn getClusterDebugColor(id: u32) -> vec3f {
@@ -57,6 +62,11 @@ fn getClusterDebugColor(id: u32) -> vec3f {
     let y = (id * 47) % 255;
     let z = (id * 101) % 255;
     return vec3f(f32(x) / 255.0, f32(y) / 255.0, f32(z) / 255.0);
+}
+
+fn getNumLightDebugColor(cluster : Cluster) -> vec3f {
+    let lightCount = f32(cluster.numLights) / 32.0; // normalized
+    return vec3f(lightCount, 0.0, 0.0);
 }
 
 @fragment
@@ -68,6 +78,9 @@ fn main(in: FragmentInput) -> @location(0) vec4f
     }
 
     let id = calculateClusterIndex(in.pos);
+    if (id >= ${numClustersX} * ${numClustersY} * ${numClustersZ}) {
+        return vec4(1.0, 0.0, 1.0, 1.0);
+    }
     let cluster = clusterSet.clusters[id];
     
     var totalLightContrib = vec3f(0, 0, 0);
@@ -78,14 +91,8 @@ fn main(in: FragmentInput) -> @location(0) vec4f
     }
 
     var finalColor = diffuseColor.rgb * totalLightContrib;
-
-    // var depth = length(in.pos);
-    // var normalizedDepth = depth / 30.0f;
-    // var finalColor = vec3f(normalizedDepth);
-
-    // let lightCount = f32(cluster.numLights) / 32.0; // 归一化
-    // var finalColor = vec3f(lightCount, 0.0, 0.0);
+    // var finalColor = getDepthDebugColor(in.pos);
     // var finalColor =  getClusterDebugColor(id);
-
+    // var finalColor = getNumLightDebugColor(cluster);
     return vec4(finalColor, 1);
 }
