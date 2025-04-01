@@ -48,7 +48,7 @@ fn lightIntersect(lightPos: vec3<f32>,
     }
 }
 
-@compute @workgroup_size(8, 8, 1)
+@compute @workgroup_size(${workgroupSizeX}, ${workgroupSizeY}, ${workgroupSizeZ})
 fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     if (global_id.x >= ${numClustersX} || 
         global_id.y >= ${numClustersY} || 
@@ -56,18 +56,26 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
         return;
     }
     
+    // 16 / 8        9 / 3       24 / 4
+    // x ∈ [0, 16)  y ∈ [0, 3)  z ∈ [0, 6)
     let index = global_id.x + 
                 global_id.y * ${numClustersX} + 
                 global_id.z * ${numClustersX} * ${numClustersY};
     
+    // E.g. 1920x1080 16x9 clusters 1920/16=120 1080/9=120
     let cluster_size_x = camera.screenWidth / f32(${numClustersX});
     let cluster_size_y = camera.screenHeight / f32(${numClustersY});
     
+    // Find Tile on Screen Size 
+    // E.g. (120, 120) ~ (240, 240)
     let min_x = f32(global_id.x) * cluster_size_x;
     let max_x = min_x + cluster_size_x;
     let min_y = f32(global_id.y) * cluster_size_y;
     let max_y = min_y + cluster_size_y;
 
+    // Near: 0.01 Far: 1000
+    // E.g.  0.01 * 100000^(1/8) ~ 0.01 * 100000^(1/6)
+    // E.g.  0.00003217 ~ 0.00005810
     let tileNear    = camera.nearZ * 
                       pow(camera.farZ / camera.nearZ, 
                       f32(global_id.z) / f32(${numClustersZ}));
@@ -113,7 +121,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
                            min_bounds, max_bounds, 
                            ${lightRadius})) {
             let count = clusterSet.clusters[index].numLights;
-            if (clusterSet.clusters[index].numLights < 32u) {
+            if (clusterSet.clusters[index].numLights < ${maxNumLights}) {
                 clusterSet.clusters[index].lightIndices[count] = lightIdx;
                 clusterSet.clusters[index].numLights += 1u;
             }

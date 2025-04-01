@@ -31,13 +31,14 @@ struct FragmentInput
 
 fn calculateClusterIndex(fragPos: vec3f) -> u32 {
     // Convert in.pos to NDC (-1, 1)
-    let screenPos  = camera.viewProjMat * vec4f(fragPos, 1.0);
-    let posNDC = screenPos.xyz / screenPos.w;
+    let screenPos   = camera.viewProjMat * vec4f(fragPos, 1.0);
+    let posNDC      = screenPos.xyz / screenPos.w;
+    let posView     = camera.viewMat * vec4<f32>(fragPos, 1.0);
+    let zDist       = posView.z;
 
     // Get Index: from (-1, 1) to (0, number)
     let xCluster    = u32((posNDC.x * 0.5 + 0.5) * f32(${numClustersX}));
     let yCluster    = u32((1.0 - (posNDC.y * 0.5 + 0.5)) * f32(${numClustersY}));
-    let zDist       = length(fragPos);
     let zCluster    = u32(log(zDist / camera.nearZ) / 
                       log(camera.farZ / camera.nearZ) * 
                       f32(${numClustersZ}));
@@ -65,8 +66,31 @@ fn getClusterDebugColor(id: u32) -> vec3f {
 }
 
 fn getNumLightDebugColor(cluster : Cluster) -> vec3f {
-    let lightCount = f32(cluster.numLights) / 32.0; // normalized
+    let lightCount = f32(cluster.numLights) / ${maxNumLights}; // normalized
     return vec3f(lightCount, 0.0, 0.0);
+}
+
+fn getTile(fragPos: vec3f) -> vec3u {
+    // 与compute shader一致的簇计算
+    let screenPos = camera.viewProjMat * vec4f(fragPos, 1.0);
+    let ndc = screenPos.xyz / screenPos.w;
+    
+    return vec3u(
+        u32((ndc.x * 0.5 + 0.5) * f32(${numClustersX})),
+        u32((1.0 - (ndc.y * 0.5 + 0.5)) * f32(${numClustersY})),
+        u32(log((camera.viewMat * vec4f(fragPos, 1.0)).z / camera.nearZ) / 
+            log(camera.farZ / camera.nearZ) * 
+            f32(${numClustersZ}))
+    );
+}
+
+fn getTileColor(fragPos: vec3f) -> vec3f {
+    let tile = getTile(fragPos);
+    return vec3f(
+        f32(tile.x) / f32(${numClustersX}),
+        f32(tile.y) / f32(${numClustersY}),
+        f32(tile.z) / f32(${numClustersZ})
+    );
 }
 
 @fragment
@@ -92,6 +116,7 @@ fn main(in: FragmentInput) -> @location(0) vec4f
 
     var finalColor = diffuseColor.rgb * totalLightContrib;
     // var finalColor = getDepthDebugColor(in.pos);
+    // var finalColor = getTileColor(in.pos);
     // var finalColor =  getClusterDebugColor(id);
     // var finalColor = getNumLightDebugColor(cluster);
     return vec4(finalColor, 1);
