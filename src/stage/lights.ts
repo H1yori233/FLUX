@@ -103,10 +103,8 @@ export class Lights {
                               shaders.constants.numClustersZ;
         // min(vec3f), max(vec3f), numLights(u32), lightIndices[32](array<u32, NUM>)
         // 12 bytes +  12 bytes +  4 bytes +       NUM * 4 bytes
-        // 24 + 4 + 4padding + 256 = 288
-        const sizePerCluster = 24 + 8 + (shaders.constants.maxNumLights * 4);
-        const clustersTotalSize = 16 +  // numClusters (u32)
-                                  totalClusters * sizePerCluster;
+        const sizePerCluster = 12 + 12 + 4 + (shaders.constants.maxNumLights * 4);
+        const clustersTotalSize = totalClusters * sizePerCluster;
         this.clusterSetStorageBuffer = device.createBuffer({
             label: "clusters",
             size: clustersTotalSize,

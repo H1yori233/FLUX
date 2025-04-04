@@ -19,7 +19,6 @@ struct Cluster {
 }
 
 struct ClusterSet {
-    numClusters: u32,
     clusters: array<Cluster>
 }
 
