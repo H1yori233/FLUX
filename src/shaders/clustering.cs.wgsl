@@ -93,23 +93,31 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let min_y_ndc = 1.0 - (min_y / camera.screenHeight * 2.0);
     let max_y_ndc = 1.0 - (max_y / camera.screenHeight * 2.0);
     
-    var corners: array<vec3f, 8>;
-    corners[0] = calculateViewPos(min_x_ndc, min_y_ndc, min_z);
-    corners[1] = calculateViewPos(max_x_ndc, min_y_ndc, min_z);
-    corners[2] = calculateViewPos(min_x_ndc, max_y_ndc, min_z);
-    corners[3] = calculateViewPos(max_x_ndc, max_y_ndc, min_z);
+    // var corners: array<vec3f, 8>;
+    // corners[0] = calculateViewPos(min_x_ndc, min_y_ndc, min_z);
+    // corners[1] = calculateViewPos(max_x_ndc, min_y_ndc, min_z);
+    // corners[2] = calculateViewPos(min_x_ndc, max_y_ndc, min_z);
+    // corners[3] = calculateViewPos(max_x_ndc, max_y_ndc, min_z);
     
-    corners[4] = calculateViewPos(min_x_ndc, min_y_ndc, max_z);
-    corners[5] = calculateViewPos(max_x_ndc, min_y_ndc, max_z);
-    corners[6] = calculateViewPos(min_x_ndc, max_y_ndc, max_z);
-    corners[7] = calculateViewPos(max_x_ndc, max_y_ndc, max_z);
+    // corners[4] = calculateViewPos(min_x_ndc, min_y_ndc, max_z);
+    // corners[5] = calculateViewPos(max_x_ndc, min_y_ndc, max_z);
+    // corners[6] = calculateViewPos(min_x_ndc, max_y_ndc, max_z);
+    // corners[7] = calculateViewPos(max_x_ndc, max_y_ndc, max_z);
 
-    var min_bounds = corners[0];
-    var max_bounds = corners[0];
-    for (var i = 1u; i < 8u; i++) {
-        min_bounds = min(min_bounds, corners[i]);
-        max_bounds = max(max_bounds, corners[i]);
-    }
+    // var min_bounds = corners[0];
+    // var max_bounds = corners[0];
+    // for (var i = 1u; i < 8u; i++) {
+    //     min_bounds = min(min_bounds, corners[i]);
+    //     max_bounds = max(max_bounds, corners[i]);
+    // }
+
+    var corners: array<vec3f, 4>;
+    corners[0] = calculateViewPos(min_x_ndc, min_y_ndc, min_z);
+    corners[1] = calculateViewPos(max_x_ndc, max_y_ndc, min_z);
+    corners[2] = calculateViewPos(min_x_ndc, min_y_ndc, max_z);
+    corners[3] = calculateViewPos(max_x_ndc, max_y_ndc, max_z);
+    var min_bounds = min(corners[0], corners[2]);
+    var max_bounds = max(corners[1], corners[3]);
     
     clusterSet.clusters[index].min = min_bounds;
     clusterSet.clusters[index].max = max_bounds;

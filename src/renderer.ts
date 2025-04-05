@@ -51,6 +51,8 @@ export async function initWebGPU() {
     });
 
     console.log("WebGPU init successsful");
+    console.log("Canvas Resolution: " + canvas.width + "x" + canvas.height);
+    console.log("Aspect Ratio: " + aspectRatio);
 
     modelBindGroupLayout = device.createBindGroupLayout({
         label: "model bind group layout",

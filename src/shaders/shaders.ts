@@ -34,15 +34,15 @@ export const constants = {
     lightRadius: 2,
     
     // TODO-2
-    maxNumLights: 512,
+    maxNumLights: 128,
 
     workgroupSizeX: 8,
-    workgroupSizeY: 3,
-    workgroupSizeZ: 6,
+    workgroupSizeY: 4,
+    workgroupSizeZ: 8,
 
     numClustersX: 16,
-    numClustersY: 9,
-    numClustersZ: 24,
+    numClustersY: 16,
+    numClustersZ: 16,
 };
 
 // =================================

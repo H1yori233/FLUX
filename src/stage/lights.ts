@@ -32,6 +32,7 @@ export class Lights {
     clusterSetStorageBuffer: GPUBuffer;
     
     clusterComputeBindGroupLayout: GPUBindGroupLayout;
+    clusterComputeBindGroup: GPUBindGroup;
     clusterComputePipeline: GPUComputePipeline;
 
     constructor(camera: Camera) {
@@ -111,6 +112,7 @@ export class Lights {
             size: clustersTotalSize,
             usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST
         });
+        device.queue.writeBuffer(this.clusterSetStorageBuffer, 0, new Uint32Array([totalClusters]));
 
         this.clusterComputeBindGroupLayout = device.createBindGroupLayout({
             label: "cluster compute bind group layout",
@@ -129,6 +131,25 @@ export class Lights {
                     binding: 2,
                     visibility: GPUShaderStage.COMPUTE,
                     buffer: { type: "read-only-storage" }
+                }
+            ]
+        });
+
+        this.clusterComputeBindGroup = device.createBindGroup({
+            label: "cluster compute bind group",
+            layout: this.clusterComputeBindGroupLayout,
+            entries: [
+                {
+                    binding: 0,
+                    resource: { buffer: this.camera.uniformsBuffer }
+                },
+                {
+                    binding: 1,
+                    resource: { buffer: this.clusterSetStorageBuffer }
+                },
+                {
+                    binding: 2,
+                    resource: { buffer: this.lightSetStorageBuffer }
                 }
             ]
         });
@@ -166,36 +187,9 @@ export class Lights {
     doLightClustering(encoder: GPUCommandEncoder) {
         // TODO-2: run the light clustering compute pass(es) here
         // implementing clustering here allows for reusing the code in both Forward+ and Clustered Deferred
-        
-        const totalClusters = shaders.constants.numClustersX * 
-                              shaders.constants.numClustersY * 
-                              shaders.constants.numClustersZ;
-        device.queue.writeBuffer(this.clusterSetStorageBuffer, 0, new Uint32Array([totalClusters]));
-        
-        // Bind Group
-        const clusterComputeBindGroup = device.createBindGroup({
-            label: "cluster compute bind group",
-            layout: this.clusterComputeBindGroupLayout,
-            entries: [
-                {
-                    binding: 0,
-                    resource: { buffer: this.camera.uniformsBuffer }
-                },
-                {
-                    binding: 1,
-                    resource: { buffer: this.clusterSetStorageBuffer }
-                },
-                {
-                    binding: 2,
-                    resource: { buffer: this.lightSetStorageBuffer }
-                }
-            ]
-        });
-
-        // Run Compute Pass
         const computePass = encoder.beginComputePass();
         computePass.setPipeline(this.clusterComputePipeline);
-        computePass.setBindGroup(0, clusterComputeBindGroup);
+        computePass.setBindGroup(0, this.clusterComputeBindGroup);
 
         const workgroupCountX = Math.ceil(shaders.constants.numClustersX / 
                                 shaders.constants.workgroupSizeX);

@@ -12,7 +12,11 @@ FLUX
 **FLUX** is a WebGPU Forward+ and Clustered Deferred Shader implemented for the UPenn CIS 565 course.
 
 ### TODO List
-- [ ] 
+- [ ] Bloom
+- [ ] Toon shading
+- [X] G-buffer Optimization
+- [ ] Render Bundles
+- [ ] Object Culling
 
 ### Live Demo
 
@@ -33,3 +37,6 @@ a
 - [dat.GUI](https://github.com/dataarts/dat.gui)
 - [stats.js](https://github.com/mrdoob/stats.js)
 - [wgpu-matrix](https://github.com/greggman/wgpu-matrix)
+
+### Reference
+- [高质量泛光（bloom）从理论到实战](https://zhuanlan.zhihu.com/p/525500877)

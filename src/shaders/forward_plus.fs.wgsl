@@ -52,19 +52,6 @@ fn calculateClusterIndex(fragPos: vec3f) -> u32 {
            z * ${numClustersX} * ${numClustersY};
 }
 
-fn getDepthDebugColor(fragPos: vec3f) -> vec3f {
-    var depth = length(fragPos);
-    var normalizedDepth = depth / 30.0f;
-    return vec3f(normalizedDepth);
-}
-
-fn getClusterDebugColor(id: u32) -> vec3f {
-    let x = (id * 13) % 255;
-    let y = (id * 47) % 255;
-    let z = (id * 101) % 255;
-    return vec3f(f32(x) / 255.0, f32(y) / 255.0, f32(z) / 255.0);
-}
-
 fn getNumLightDebugColor(cluster : Cluster) -> vec3f {
     let lightCount = f32(cluster.numLights) / ${maxNumLights}; // normalized
     return vec3f(lightCount, 0.0, 0.0);
@@ -114,10 +101,10 @@ fn main(in: FragmentInput) -> @location(0) vec4f
         totalLightContrib += calculateLightContrib(light, in.pos, normalize(in.nor));
     }
 
-    var finalColor = diffuseColor.rgb * totalLightContrib;
+    // var finalColor = diffuseColor.rgb * totalLightContrib;
     // var finalColor = getDepthDebugColor(in.pos);
     // var finalColor = getTileColor(in.pos);
     // var finalColor =  getClusterDebugColor(id);
-    // var finalColor = getNumLightDebugColor(cluster);
+    var finalColor = getNumLightDebugColor(cluster);
     return vec4(finalColor, 1);
 }

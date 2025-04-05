@@ -5,14 +5,17 @@
 @group(${bindGroup_scene}) @binding(1) var<storage, read> lightSet: LightSet;
 @group(${bindGroup_scene}) @binding(2) var<storage, read> clusterSet: ClusterSet;
 
-@group(${bindGroup_gbuffer}) @binding(0) var positionTexture: texture_2d<f32>;
-@group(${bindGroup_gbuffer}) @binding(1) var normalTexture: texture_2d<f32>;
-@group(${bindGroup_gbuffer}) @binding(2) var albedoTexture: texture_2d<f32>;
-@group(${bindGroup_gbuffer}) @binding(3) var textureSampler: sampler;
+@group(${bindGroup_gbuffer}) @binding(0) var packTexture: texture_2d<u32>;
 
 struct FragmentInput {
     @builtin(position) fragCoord: vec4f,
     @location(0) uv: vec2f
+}
+
+fn reconstructWorldPosition(uv: vec2f, depth: f32) -> vec3f {
+    let clipSpacePos = vec4f(uv * 2.0 - 1.0, depth, 1.0);
+    let worldSpacePos = camera.invViewProjMat * clipSpacePos;
+    return worldSpacePos.xyz / worldSpacePos.w;
 }
 
 fn calculateClusterIndex(fragPos: vec3f) -> u32 {
@@ -41,13 +44,14 @@ fn calculateClusterIndex(fragPos: vec3f) -> u32 {
 @fragment
 fn main(in: FragmentInput) -> @location(0) vec4f {
     let texCoord = in.uv;
-    let position = textureSample(positionTexture, textureSampler, texCoord).xyz;
-    let normal = normalize(textureSample(normalTexture, textureSampler, texCoord).xyz);
-    let albedo = textureSample(albedoTexture, textureSampler, texCoord);
+    let pack = textureLoad(packTexture, vec2i(in.fragCoord.xy), 0);
     
-    if (albedo.a < 0.5) {
-        discard;
-    }
+    let normal = decodeNormal(unpack2x16snorm(pack.x));
+    let DR = unpack2x16snorm(pack.y);
+    let GB = unpack2x16snorm(pack.z);
+    let depth = DR.x;
+    let albedo = vec3f(DR.y, GB.x, GB.y);
+    let position = reconstructWorldPosition(texCoord, depth);
 
     let id = calculateClusterIndex(vec3f(in.fragCoord.x, in.fragCoord.y, in.fragCoord.z));
     if (id >= ${numClustersX} * ${numClustersY} * ${numClustersZ}) {
@@ -67,6 +71,7 @@ fn main(in: FragmentInput) -> @location(0) vec4f {
         totalLightContrib += calculateLightContrib(light, position, normalize(normal));
     }
 
-    let finalColor = albedo.rgb * totalLightContrib;
+    // let finalColor = albedo.rgb * totalLightContrib;
+    let finalColor = albedo.rgb;
     return vec4(finalColor, 1.0);
 }

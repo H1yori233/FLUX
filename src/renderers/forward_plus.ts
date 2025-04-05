@@ -16,6 +16,10 @@ export class ForwardPlusRenderer extends renderer.Renderer {
     depthPrePassPipeline: GPURenderPipeline;
     forwardPlusPipeline: GPURenderPipeline;
 
+    // Post Processing
+    renderTexture: GPUTexture;
+    renderTextureView: GPUTextureView;
+
     constructor(stage: Stage) {
         super(stage);
 
@@ -126,6 +130,14 @@ export class ForwardPlusRenderer extends renderer.Renderer {
                 depthCompare: "less-equal"  // Pre-Depth
             }
         });
+
+        // Post Processing
+        this.renderTexture = renderer.device.createTexture({
+            size: [renderer.canvas.width, renderer.canvas.height],
+            format: "rgba16float",
+            usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING
+        });
+        this.renderTextureView = this.renderTexture.createView();
     }
 
     override draw() {
