@@ -1,7 +1,7 @@
 // TODO-2: implement the light clustering compute shader
 @group(${bindGroup_scene}) @binding(0) var<uniform> camera: CameraUniforms;
-@group(${bindGroup_scene}) @binding(1) var<storage, read_write> clusterSet: ClusterSet;
-@group(${bindGroup_scene}) @binding(2) var<storage, read> lightSet: LightSet;
+@group(${bindGroup_scene}) @binding(1) var<storage, read> lightSet: LightSet;
+@group(${bindGroup_scene}) @binding(2) var<storage, read_write> clusterSet: ClusterSet;
 
 // ------------------------------------
 // Calculating cluster bounds:
@@ -12,10 +12,16 @@
 //     - Convert these screen and depth bounds into view-space coordinates.
 //     - Store the computed bounding box (AABB) for the cluster.
 
-fn calculateViewPos(ndc_x: f32, ndc_y: f32, depth: f32) -> vec3f {
-    let ndcCoord = vec4(ndc_x, ndc_y, depth, 1.0);
-    let viewCoord = camera.invViewProjMat * ndcCoord;
-    return viewCoord.xyz / viewCoord.w;
+fn clip2View(clip: vec4f) -> vec4f {
+    var view = camera.invViewProjMat * clip;
+    view = view / view.w;
+    return view;
+}
+
+fn screen2View(screen: vec4f) -> vec4f {
+    let texCoord = screen.xy / vec2f(camera.screenWidth, camera.screenHeight);
+    let clip = vec4f(vec2f(texCoord.x, 1.0 - texCoord.y) * 2.0 - 1.0, screen.z, screen.w);
+    return clip2View(clip);
 }
 
 // ------------------------------------
@@ -33,19 +39,10 @@ fn calculateViewPos(ndc_x: f32, ndc_y: f32, depth: f32) -> vec3f {
 
 fn lightIntersect(lightPos: vec3<f32>, 
                   min: vec3<f32>, max: vec3<f32>, r: f32) -> bool {
-    let x = clamp(lightPos.x, min.x, max.x);
-    let y = clamp(lightPos.y, min.y, max.y);
-    let z = clamp(lightPos.z, min.z, max.z);
-
-    let closestPoint = vec3<f32>(x, y, z);
+    let closestPoint = clamp(lightPos, min, max); 
     let d = lightPos - closestPoint;
     let dist = dot(d, d);
-    if (dist <= r * r) {
-        return true;
-    }
-    else {
-        return false;
-    }
+    return dist <= r * r;
 }
 
 @compute @workgroup_size(${workgroupSizeX}, ${workgroupSizeY}, ${workgroupSizeZ})
@@ -56,80 +53,52 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
         return;
     }
     
-    // 16 / 8        9 / 3       24 / 4
-    // x ∈ [0, 16)  y ∈ [0, 3)  z ∈ [0, 6)
     let index = global_id.x + 
                 global_id.y * ${numClustersX} + 
                 global_id.z * ${numClustersX} * ${numClustersY};
-    
-    // E.g. 1920x1080 16x9 clusters 1920/16=120 1080/9=120
-    let cluster_size_x = camera.screenWidth / f32(${numClustersX});
-    let cluster_size_y = camera.screenHeight / f32(${numClustersY});
-    
-    // Find Tile on Screen Size 
-    // E.g. (120, 120) ~ (240, 240)
-    let min_x = f32(global_id.x) * cluster_size_x;
-    let max_x = min_x + cluster_size_x;
-    let min_y = f32(global_id.y) * cluster_size_y;
-    let max_y = min_y + cluster_size_y;
 
-    // Near: 0.01 Far: 1000
-    // E.g.  0.01 * 100000^(1/8) ~ 0.01 * 100000^(1/6)
-    // E.g.  0.00003217 ~ 0.00005810
-    let tileNear    = camera.nearZ * 
+    let minX = -1.0 + 2.0 * f32(global_id.x) / f32(${numClustersX});
+    let maxX = -1.0 + 2.0 * f32(global_id.x + 1) / f32(${numClustersX});
+    let minY = -1.0 + 2.0 * f32(global_id.y) / f32(${numClustersY});
+    let maxY = -1.0 + 2.0 * f32(global_id.y + 1) / f32(${numClustersY});
+    
+    let tileNear    = -camera.nearZ * 
                       pow(camera.farZ / camera.nearZ, 
                       f32(global_id.z) / f32(${numClustersZ}));
-    let tileFar     = camera.nearZ * 
+    let tileFar     = -camera.nearZ * 
                       pow(camera.farZ / camera.nearZ, 
                       f32(global_id.z + 1u) / f32(${numClustersZ}));
-    let min_z = (tileNear - camera.nearZ) / 
-                (camera.farZ - camera.nearZ);
-    let max_z = (tileFar -  camera.nearZ) / 
-                (camera.farZ - camera.nearZ);
+    let minZ = (camera.projMat[2][2] * tileNear + camera.projMat[3][2]) / 
+               (camera.projMat[2][3] * tileNear + camera.projMat[3][3]);
+    let maxZ = (camera.projMat[2][2] * tileFar  + camera.projMat[3][2]) / 
+               (camera.projMat[2][3] * tileFar  + camera.projMat[3][3]);
+    
+    var corners: array<vec4f, 8>;
+    corners[0] = vec4f(minX, minY, minZ, 1.0);
+    corners[1] = vec4f(minX, minY, maxZ, 1.0);
+    corners[2] = vec4f(minX, maxY, minZ, 1.0);
+    corners[3] = vec4f(minX, maxY, maxZ, 1.0);
+    corners[4] = vec4f(maxX, minY, minZ, 1.0);
+    corners[5] = vec4f(maxX, minY, maxZ, 1.0);
+    corners[6] = vec4f(maxX, maxY, minZ, 1.0);
+    corners[7] = vec4f(maxX, maxY, maxZ, 1.0);
 
-    // from (0, width) to (-1, 1)
-    let min_x_ndc = min_x / camera.screenWidth * 2.0 - 1.0;
-    let max_x_ndc = max_x / camera.screenWidth * 2.0 - 1.0;
-    let min_y_ndc = 1.0 - (min_y / camera.screenHeight * 2.0);
-    let max_y_ndc = 1.0 - (max_y / camera.screenHeight * 2.0);
-    
-    // var corners: array<vec3f, 8>;
-    // corners[0] = calculateViewPos(min_x_ndc, min_y_ndc, min_z);
-    // corners[1] = calculateViewPos(max_x_ndc, min_y_ndc, min_z);
-    // corners[2] = calculateViewPos(min_x_ndc, max_y_ndc, min_z);
-    // corners[3] = calculateViewPos(max_x_ndc, max_y_ndc, min_z);
-    
-    // corners[4] = calculateViewPos(min_x_ndc, min_y_ndc, max_z);
-    // corners[5] = calculateViewPos(max_x_ndc, min_y_ndc, max_z);
-    // corners[6] = calculateViewPos(min_x_ndc, max_y_ndc, max_z);
-    // corners[7] = calculateViewPos(max_x_ndc, max_y_ndc, max_z);
+    var min_bounds = clip2View(corners[0]).xyz;
+    var max_bounds = min_bounds;
+    for (var i = 1u; i < 8u; i++) {
+        let corner = clip2View(corners[i]).xyz;
+        min_bounds = min(min_bounds, corner);
+        max_bounds = max(max_bounds, corner);
+    }
 
-    // var min_bounds = corners[0];
-    // var max_bounds = corners[0];
-    // for (var i = 1u; i < 8u; i++) {
-    //     min_bounds = min(min_bounds, corners[i]);
-    //     max_bounds = max(max_bounds, corners[i]);
-    // }
-
-    var corners: array<vec3f, 4>;
-    corners[0] = calculateViewPos(min_x_ndc, min_y_ndc, min_z);
-    corners[1] = calculateViewPos(max_x_ndc, max_y_ndc, min_z);
-    corners[2] = calculateViewPos(min_x_ndc, min_y_ndc, max_z);
-    corners[3] = calculateViewPos(max_x_ndc, max_y_ndc, max_z);
-    var min_bounds = min(corners[0], corners[2]);
-    var max_bounds = max(corners[1], corners[3]);
-    
-    clusterSet.clusters[index].min = min_bounds;
-    clusterSet.clusters[index].max = max_bounds;
-    
     // Assigning lights to clusters:
     clusterSet.clusters[index].numLights = 0u;
     for (var lightIdx = 0u; lightIdx < lightSet.numLights; lightIdx++) {
-        if (lightIntersect(lightSet.lights[lightIdx].pos, 
-                           min_bounds, max_bounds, 
-                           ${lightRadius})) {
+        let lightWorld = lightSet.lights[lightIdx].pos;
+        let lightView = camera.viewMat * vec4f(lightWorld, 1.0);
+        if (lightIntersect(lightView.xyz, min_bounds, max_bounds, ${lightRadius})) {
             let count = clusterSet.clusters[index].numLights;
-            if (clusterSet.clusters[index].numLights < ${maxNumLights}) {
+            if (count < ${maxNumLights}) {
                 clusterSet.clusters[index].lightIndices[count] = lightIdx;
                 clusterSet.clusters[index].numLights += 1u;
             }

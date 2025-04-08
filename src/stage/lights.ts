@@ -102,17 +102,16 @@ export class Lights {
         const totalClusters = shaders.constants.numClustersX * 
                               shaders.constants.numClustersY * 
                               shaders.constants.numClustersZ;
-        // min(vec3f), max(vec3f), numLights(u32), lightIndices[32](array<u32, NUM>)
-        // 12 bytes +  12 bytes +  4 bytes +       NUM * 4 bytes
-        // 3 + 3 + 1 + 1(padding)
-        const sizePerCluster = (8 + shaders.constants.maxNumLights) * 4;
+        // numLights(u32), lightIndices[32](array<u32, NUM>)
+        // 4 bytes +       NUM * 4 bytes
+        const sizePerCluster = (1 + shaders.constants.maxNumLights) * 4;
         const clustersTotalSize = totalClusters * sizePerCluster;
         this.clusterSetStorageBuffer = device.createBuffer({
             label: "clusters",
             size: clustersTotalSize,
             usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST
         });
-        device.queue.writeBuffer(this.clusterSetStorageBuffer, 0, new Uint32Array([totalClusters]));
+        // device.queue.writeBuffer(this.clusterSetStorageBuffer, 0, new Uint32Array([totalClusters]));
 
         this.clusterComputeBindGroupLayout = device.createBindGroupLayout({
             label: "cluster compute bind group layout",
@@ -122,15 +121,15 @@ export class Lights {
                     visibility: GPUShaderStage.COMPUTE,
                     buffer: { type: "uniform" }
                 },
-                { // cluster storage buffer
+                { // light storage buffer
                     binding: 1,
                     visibility: GPUShaderStage.COMPUTE,
-                    buffer: { type: "storage" }
+                    buffer: { type: "read-only-storage" }
                 },
-                { // light storage buffer
+                { // cluster storage buffer
                     binding: 2,
                     visibility: GPUShaderStage.COMPUTE,
-                    buffer: { type: "read-only-storage" }
+                    buffer: { type: "storage" }
                 }
             ]
         });
@@ -145,11 +144,11 @@ export class Lights {
                 },
                 {
                     binding: 1,
-                    resource: { buffer: this.clusterSetStorageBuffer }
+                    resource: { buffer: this.lightSetStorageBuffer }
                 },
                 {
                     binding: 2,
-                    resource: { buffer: this.lightSetStorageBuffer }
+                    resource: { buffer: this.clusterSetStorageBuffer }
                 }
             ]
         });

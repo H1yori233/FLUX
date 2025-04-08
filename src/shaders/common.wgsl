@@ -12,8 +12,6 @@ struct LightSet {
 
 // TODO-2: you may want to create a ClusterSet struct similar to LightSet
 struct Cluster {
-    min: vec3f,
-    max: vec3f,
     numLights: u32,
     lightIndices: array<u32, ${maxNumLights}>
 }
@@ -26,6 +24,7 @@ struct CameraUniforms {
     // TODO-1.3: add an entry for the view proj mat (of type mat4x4f)
     viewProjMat: mat4x4f,
     viewMat: mat4x4f,
+    projMat: mat4x4f,
     invViewProjMat: mat4x4f,
     screenWidth: f32,
     screenHeight: f32,
@@ -45,7 +44,6 @@ fn calculateLightContrib(light: Light, posWorld: vec3f, nor: vec3f) -> vec3f {
     let lambert = max(dot(nor, normalize(vecToLight)), 0.f);
     return light.color * lambert * rangeAttenuation(distToLight);
 }
-
 
 // X^2 + Y^2 + Z^2 = 1 -> we can only store X and Y, but need SIGN of Z
 fn encodeNormal(normal: vec3f) -> vec2f {

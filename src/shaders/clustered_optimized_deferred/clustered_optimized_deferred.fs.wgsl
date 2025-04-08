@@ -6,30 +6,31 @@
 @group(${bindGroup_material}) @binding(1) var diffuseTexSampler: sampler;
 
 struct FragmentInput {
+    @builtin(position) fragCoord: vec4f,
     @location(0) pos: vec3f,
     @location(1) nor: vec3f,
     @location(2) uv: vec2f
 }
 
 struct GBufferOutput {
-    @location(0) position: vec4f,  // World position (xyz) + unused (w)
-    @location(1) normal: vec4f,    // Normal vector (xyz) + unused (w)
-    @location(2) albedo: vec4f     // Diffuse color (rgb) + alpha (a)
+    @location(0) pack: vec4u
 }
 
 @fragment
 fn main(in: FragmentInput) -> GBufferOutput {
     let diffuseColor = textureSample(diffuseTex, diffuseTexSampler, in.uv);
-    
-    // Early discard for transparent pixels
     if (diffuseColor.a < 0.5) {
         discard;
     }
     
     var output: GBufferOutput;
-    output.position = vec4f(in.pos, 1.0);
-    output.normal = vec4f(normalize(in.nor), 0.0);
-    output.albedo = diffuseColor;
-    
+    let normal = normalize(in.nor);
+    let depth = in.fragCoord.z;
+    let encodedNormal = encodeNormal(normal);
+
+    let packedNormal = pack2x16snorm(encodedNormal);
+    let packedD_R = pack2x16snorm(vec2f(depth, diffuseColor.r));
+    let packedGB = pack2x16snorm(vec2f(diffuseColor.g, diffuseColor.b));
+    output.pack = vec4u(packedNormal, packedD_R, packedGB, 0);
     return output;
 }

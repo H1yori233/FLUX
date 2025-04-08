@@ -3,7 +3,7 @@ import { toRadians } from "../math_util";
 import { device, canvas, fovYDegrees, aspectRatio } from "../renderer";
 
 class CameraUniforms {
-    readonly buffer = new ArrayBuffer(16 * 4 * 5);
+    readonly buffer = new ArrayBuffer(16 * 4 * 6);
     private readonly floatView = new Float32Array(this.buffer);
 
     set viewProjMat(mat: Float32Array) {
@@ -16,24 +16,28 @@ class CameraUniforms {
         this.floatView.set(mat, 16);
     }
 
-    set invViewProjMat(mat: Float32Array) {
+    set projMat(mat: Float32Array) {
         this.floatView.set(mat, 32);
+    }
+
+    set invViewProjMat(mat: Float32Array) {
+        this.floatView.set(mat, 48);
     }
     
     set screenWidth(width: number) {
-        this.floatView[48] = width;
+        this.floatView[64] = width;
     }
     
     set screenHeight(height: number) {
-        this.floatView[49] = height;
+        this.floatView[65] = height;
     }
     
     set nearZ(near: number) {
-        this.floatView[50] = near;
+        this.floatView[66] = near;
     }
     
     set farZ(far: number) {
-        this.floatView[51] = far;
+        this.floatView[67] = far;
     }
 }
 
@@ -164,6 +168,9 @@ export class Camera {
         this.uniforms.viewMat = viewMat;
         const invViewProjMat = mat4.inverse(viewProjMat);
         this.uniforms.invViewProjMat = invViewProjMat;
+        
+        // Add projection matrix to uniforms
+        this.uniforms.projMat = this.projMat;
         
         this.uniforms.screenWidth = canvas.width;
         this.uniforms.screenHeight = canvas.height;
