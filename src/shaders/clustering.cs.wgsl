@@ -13,7 +13,7 @@
 //     - Store the computed bounding box (AABB) for the cluster.
 
 fn clip2View(clip: vec4f) -> vec4f {
-    var view = camera.invViewProjMat * clip;
+    var view = camera.invProjMat * clip;
     view = view / view.w;
     return view;
 }
@@ -37,12 +37,12 @@ fn screen2View(screen: vec4f) -> vec4f {
 
 //     - Store the number of lights assigned to this cluster.
 
-fn lightIntersect(lightPos: vec3<f32>, 
-                  min: vec3<f32>, max: vec3<f32>, r: f32) -> bool {
-    let closestPoint = clamp(lightPos, min, max); 
-    let d = lightPos - closestPoint;
-    let dist = dot(d, d);
-    return dist <= r * r;
+fn lineIntersectionToZPlane(A: vec3f, B: vec3f, zDistance: f32) -> vec3f {
+    let normal = vec3f(0.0, 0.0, 1.0);
+    let ab =  B - A;
+    let t = (zDistance - dot(normal, A)) / dot(normal, ab);
+    let result = A + t * ab;
+    return result;
 }
 
 @compute @workgroup_size(${workgroupSizeX}, ${workgroupSizeY}, ${workgroupSizeZ})
@@ -56,40 +56,34 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let index = global_id.x + 
                 global_id.y * ${numClustersX} + 
                 global_id.z * ${numClustersX} * ${numClustersY};
-
-    let minX = -1.0 + 2.0 * f32(global_id.x) / f32(${numClustersX});
-    let maxX = -1.0 + 2.0 * f32(global_id.x + 1) / f32(${numClustersX});
-    let minY = -1.0 + 2.0 * f32(global_id.y) / f32(${numClustersY});
-    let maxY = -1.0 + 2.0 * f32(global_id.y + 1) / f32(${numClustersY});
     
+    let cluster_size_x = camera.screenWidth / f32(${numClustersX});
+    let cluster_size_y = camera.screenHeight / f32(${numClustersY});
+    
+    let min_x = f32(global_id.x) * cluster_size_x;
+    let max_x = min_x + cluster_size_x;
+    let min_y = f32(global_id.y) * cluster_size_y;
+    let max_y = min_y + cluster_size_y;
+
+    let min_screen  = vec4f(min_x, min_y, -1.0, 1.0);
+    let max_screen  = vec4f(max_x, max_y, -1.0, 1.0);
+    let min_view    = screen2View(min_screen).xyz;
+    let max_view    = screen2View(max_screen).xyz;
     let tileNear    = -camera.nearZ * 
                       pow(camera.farZ / camera.nearZ, 
                       f32(global_id.z) / f32(${numClustersZ}));
     let tileFar     = -camera.nearZ * 
                       pow(camera.farZ / camera.nearZ, 
                       f32(global_id.z + 1u) / f32(${numClustersZ}));
-    let minZ = (camera.projMat[2][2] * tileNear + camera.projMat[3][2]) / 
-               (camera.projMat[2][3] * tileNear + camera.projMat[3][3]);
-    let maxZ = (camera.projMat[2][2] * tileFar  + camera.projMat[3][2]) / 
-               (camera.projMat[2][3] * tileFar  + camera.projMat[3][3]);
-    
-    var corners: array<vec4f, 8>;
-    corners[0] = vec4f(minX, minY, minZ, 1.0);
-    corners[1] = vec4f(minX, minY, maxZ, 1.0);
-    corners[2] = vec4f(minX, maxY, minZ, 1.0);
-    corners[3] = vec4f(minX, maxY, maxZ, 1.0);
-    corners[4] = vec4f(maxX, minY, minZ, 1.0);
-    corners[5] = vec4f(maxX, minY, maxZ, 1.0);
-    corners[6] = vec4f(maxX, maxY, minZ, 1.0);
-    corners[7] = vec4f(maxX, maxY, maxZ, 1.0);
 
-    var min_bounds = clip2View(corners[0]).xyz;
-    var max_bounds = min_bounds;
-    for (var i = 1u; i < 8u; i++) {
-        let corner = clip2View(corners[i]).xyz;
-        min_bounds = min(min_bounds, corner);
-        max_bounds = max(max_bounds, corner);
-    }
+    let eyePos = vec3f(0.0);
+    let minPointNear = lineIntersectionToZPlane(eyePos, min_view, tileNear);
+    let minPointFar  = lineIntersectionToZPlane(eyePos, min_view, tileFar);
+    let maxPointNear = lineIntersectionToZPlane(eyePos, max_view, tileNear);
+    let maxPointFar  = lineIntersectionToZPlane(eyePos, max_view, tileFar);
+    
+    let min_bounds = min(min(minPointNear, minPointFar), min(maxPointNear, maxPointFar));
+    let max_bounds = max(max(minPointNear, minPointFar), max(maxPointNear, maxPointFar));
 
     // Assigning lights to clusters:
     clusterSet.clusters[index].numLights = 0u;

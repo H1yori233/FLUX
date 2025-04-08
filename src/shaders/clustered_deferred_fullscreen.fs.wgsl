@@ -16,13 +16,12 @@ struct FragmentInput {
 }
 
 fn calculateClusterIndex(fragPos: vec3f) -> u32 {
-    let posNDC = camera.viewProjMat * vec4f(fragPos, 1.0);
-    let normalizedPos = posNDC.xyz / posNDC.w;
+    var posView = camera.viewMat * vec4f(fragPos, 1.0);
+    var posNDC  = camera.viewProjMat * vec4f(fragPos, 1.0);
+    posNDC = posNDC / posNDC.w;
     
-    let x = u32((normalizedPos.x + 1.0) * 0.5 * f32(${numClustersX}));
-    let y = u32((normalizedPos.y + 1.0) * 0.5 * f32(${numClustersY}));
-    
-    let posView = camera.viewMat * vec4f(fragPos, 1.0);
+    let x = u32((posNDC.x + 1.0) * 0.5 * f32(${numClustersX}));
+    let y = u32((1.0 - posNDC.y) * 0.5 * f32(${numClustersY}));
     let viewZ = -posView.z;
     let z = u32(log(viewZ / camera.nearZ) / 
             log(camera.farZ / camera.nearZ) * 
@@ -32,6 +31,7 @@ fn calculateClusterIndex(fragPos: vec3f) -> u32 {
            y * ${numClustersX} + 
            z * ${numClustersY} * ${numClustersX};
 }
+
 fn getNumLightDebugColor(cluster : Cluster) -> vec3f {
     let lightCount = f32(cluster.numLights) / ${maxNumLights}; // normalized
     return vec3f(lightCount, lightCount, lightCount);
@@ -53,12 +53,7 @@ fn main(in: FragmentInput) -> @location(0) vec4f {
         return vec4(1.0, 0.0, 1.0, 1.0);
     }
     let cluster = clusterSet.clusters[id];
-    
-    // var totalLightContrib = vec3f(0, 0, 0);
-    // for (var lightIdx = 0u; lightIdx < lightSet.numLights; lightIdx++) {
-    //     let light = lightSet.lights[lightIdx];
-    //     totalLightContrib += calculateLightContrib(light, position, normalize(normal));
-    // }
+
     var totalLightContrib = vec3f(0, 0, 0);
     for (var i = 0u; i < cluster.numLights; i++) {
         let lightIdx = cluster.lightIndices[i];
@@ -66,7 +61,7 @@ fn main(in: FragmentInput) -> @location(0) vec4f {
         totalLightContrib += calculateLightContrib(light, position, normalize(normal));
     }
 
-    var finalColor = albedo.rgb * totalLightContrib + albedo.rgb;
+    var finalColor = albedo.rgb * totalLightContrib;
     // finalColor = albedo.rgb;
     // var finalColor = getNumLightDebugColor(cluster);
     return vec4(finalColor, 1.0);

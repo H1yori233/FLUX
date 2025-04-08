@@ -24,7 +24,7 @@ struct CameraUniforms {
     // TODO-1.3: add an entry for the view proj mat (of type mat4x4f)
     viewProjMat: mat4x4f,
     viewMat: mat4x4f,
-    projMat: mat4x4f,
+    invProjMat: mat4x4f,
     invViewProjMat: mat4x4f,
     screenWidth: f32,
     screenHeight: f32,
@@ -43,6 +43,14 @@ fn calculateLightContrib(light: Light, posWorld: vec3f, nor: vec3f) -> vec3f {
 
     let lambert = max(dot(nor, normalize(vecToLight)), 0.f);
     return light.color * lambert * rangeAttenuation(distToLight);
+}
+
+fn lightIntersect(lightPos: vec3<f32>, 
+                  min: vec3<f32>, max: vec3<f32>, r: f32) -> bool {
+    let closestPoint = clamp(lightPos, min, max); 
+    let d = lightPos - closestPoint;
+    let dist = dot(d, d);
+    return dist <= r * r;
 }
 
 // X^2 + Y^2 + Z^2 = 1 -> we can only store X and Y, but need SIGN of Z

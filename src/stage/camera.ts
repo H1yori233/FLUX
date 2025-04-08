@@ -16,14 +16,14 @@ class CameraUniforms {
         this.floatView.set(mat, 16);
     }
 
-    set projMat(mat: Float32Array) {
+    set invProjMat(mat: Float32Array) {
         this.floatView.set(mat, 32);
     }
 
     set invViewProjMat(mat: Float32Array) {
         this.floatView.set(mat, 48);
     }
-    
+
     set screenWidth(width: number) {
         this.floatView[64] = width;
     }
@@ -170,7 +170,7 @@ export class Camera {
         this.uniforms.invViewProjMat = invViewProjMat;
         
         // Add projection matrix to uniforms
-        this.uniforms.projMat = this.projMat;
+        this.uniforms.invProjMat =  mat4.inverse(this.projMat);
         
         this.uniforms.screenWidth = canvas.width;
         this.uniforms.screenHeight = canvas.height;

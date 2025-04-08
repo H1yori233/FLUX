@@ -31,13 +31,12 @@ struct FragmentInput
 // Return the final color, ensuring that the alpha component is set appropriately (typically to 1).
 
 fn calculateClusterIndex(fragPos: vec3f) -> u32 {
-    let posNDC = camera.viewProjMat * vec4f(fragPos, 1.0);
-    let normalizedPos = posNDC.xyz / posNDC.w;
+    var posView = camera.viewMat * vec4f(fragPos, 1.0);
+    var posNDC  = camera.viewProjMat * vec4f(fragPos, 1.0);
+    posNDC = posNDC / posNDC.w;
     
-    let x = u32((normalizedPos.x + 1.0) * 0.5 * f32(${numClustersX}));
-    let y = u32((normalizedPos.y + 1.0) * 0.5 * f32(${numClustersY}));
-    
-    let posView = camera.viewMat * vec4f(fragPos, 1.0);
+    let x = u32((posNDC.x + 1.0) * 0.5 * f32(${numClustersX}));
+    let y = u32((1.0 - posNDC.y) * 0.5 * f32(${numClustersY}));
     let viewZ = -posView.z;
     let z = u32(log(viewZ / camera.nearZ) / 
             log(camera.farZ / camera.nearZ) * 
@@ -61,7 +60,6 @@ fn main(in: FragmentInput) -> @location(0) vec4f
         discard;
     }
 
-    // let id = calculateClusterIndex(in.fragCoord);
     let id = calculateClusterIndex(in.pos);
     if (id >= ${numClustersX} * ${numClustersY} * ${numClustersZ}) {
         return vec4(1.0, 0.0, 1.0, 1.0);
@@ -76,10 +74,6 @@ fn main(in: FragmentInput) -> @location(0) vec4f
     }
 
     // var finalColor = diffuseColor.rgb * totalLightContrib;
-    // var finalColor = getDepthDebugColor(in.pos);
-    // var finalColor =  getClusterDebugColor(id);
     var finalColor = getNumLightDebugColor(cluster);
-    // let a = f32(id) / 24 / ${maxNumLights};
-    // var finalColor = vec3f(a, a, a);
     return vec4(finalColor, 1);
 }
