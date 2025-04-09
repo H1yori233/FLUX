@@ -1,18 +1,20 @@
 import Stats from 'stats.js';
 import { GUI } from 'dat.gui';
 
-import { initWebGPU, Renderer } from './renderer';
+import * as rendererModule from './renderer';
 import { NaiveRenderer } from './renderers/naive';
 import { ForwardPlusRenderer } from './renderers/forward_plus';
 import { ClusteredDeferredRenderer } from './renderers/clustered_deferred';
 import { ClusteredOptimizedDeferredRenderer } from './renderers/clustered_optimized_deferred';
+import { Bloom } from './renderers/bloom';
+import { Toon } from './renderers/toon';
 
 import { setupLoaders, Scene } from './stage/scene';
 import { Lights } from './stage/lights';
 import { Camera } from './stage/camera';
 import { Stage } from './stage/stage';
 
-await initWebGPU();
+await rendererModule.initWebGPU();
 setupLoaders();
 
 let scene = new Scene();
@@ -25,18 +27,43 @@ const stats = new Stats();
 stats.showPanel(0);
 document.body.appendChild(stats.dom);
 
+const bloom = new Bloom();
+const toon = new Toon();
+
 const gui = new GUI();
 gui.add(lights, 'numLights').min(1).max(Lights.maxNumLights).step(1).onChange(() => {
     lights.updateLightSetUniformNumLights();
 });
 
-const stage = new Stage(scene, lights, camera, stats);
+const stage = new Stage(scene, lights, camera, stats, bloom, toon);
 
-var renderer: Renderer | undefined;
+var renderer: rendererModule.Renderer | undefined;
+
+const bloomParams = {
+    enabled: false,
+    threshold: 0.7,
+    intensity: 1.0,
+    strength: 0.5,
+    kernelSize: 5
+};
+
+const toonParams = {
+    enabled: false,
+    intensity: 5.0
+};
+
+function updateBloomParams() {
+    rendererModule.updateBloomParams({
+        threshold: bloomParams.threshold,
+        intensity: bloomParams.intensity,
+        strength: bloomParams.strength,
+        kernelSize: bloomParams.kernelSize
+    });
+}
 
 function setRenderer(mode: string) {
     renderer?.stop();
-
+    
     switch (mode) {
         case renderModes.naive:
             renderer = new NaiveRenderer(stage);
@@ -58,4 +85,32 @@ const renderModes = { naive: 'naive', forwardPlus: 'forward+',
 let renderModeController = gui.add({ mode: renderModes.forwardPlus }, 'mode', renderModes);
 renderModeController.onChange(setRenderer);
 
+// Add Bloom to GUI
+const bloomFolder = gui.addFolder('Bloom Effect');
+bloomFolder.add(bloomParams, 'enabled').name('Enable').onChange(() => {
+    renderer?.toggleBloom();
+});
+bloomFolder.add(bloomParams, 'threshold').min(0.0).max(1.0).step(0.01).name('Threshold').onChange(() => {
+    updateBloomParams();
+});
+bloomFolder.add(bloomParams, 'intensity').min(0.0).max(5.0).step(0.1).name('Intensity').onChange(() => {
+    updateBloomParams();
+});
+bloomFolder.add(bloomParams, 'strength').min(0.0).max(2.0).step(0.05).name('Strength').onChange(() => {
+    updateBloomParams();
+});
+bloomFolder.add(bloomParams, 'kernelSize').min(3).max(15).step(2).name('Kernel Size').onChange(() => {
+    updateBloomParams();
+});
+
+// Add Toon to GUI
+const toonFolder = gui.addFolder('Toon Effect');
+toonFolder.add(toonParams, 'enabled').name('Enable').onChange(() => {
+    renderer?.toggleToon();
+});
+toonFolder.add(toonParams, 'intensity').min(2.0).max(20.0).step(1.0).name('Quantization').onChange(() => {
+    toon.updateIntensity(toonParams.intensity);
+});
+
 setRenderer(renderModeController.getValue());
+updateBloomParams();

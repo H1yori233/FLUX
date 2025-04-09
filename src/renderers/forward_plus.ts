@@ -11,14 +11,10 @@ export class ForwardPlusRenderer extends renderer.Renderer {
 
     depthTexture: GPUTexture;
     depthTextureView: GPUTextureView;
-    // pipeline: GPURenderPipeline;
-
-    depthPrePassPipeline: GPURenderPipeline;
-    forwardPlusPipeline: GPURenderPipeline;
-
-    // Post Processing
     renderTexture: GPUTexture;
     renderTextureView: GPUTextureView;
+
+    pipeline: GPURenderPipeline;
 
     constructor(stage: Stage) {
         super(stage);
@@ -70,32 +66,14 @@ export class ForwardPlusRenderer extends renderer.Renderer {
             usage: GPUTextureUsage.RENDER_ATTACHMENT
         });
         this.depthTextureView = this.depthTexture.createView();
-        
-        // Pipeline Setting
-        this.depthPrePassPipeline = renderer.device.createRenderPipeline({
-            layout: renderer.device.createPipelineLayout({
-                label: "depth pre-pass pipeline layout",
-                bindGroupLayouts: [
-                    this.sceneUniformsBindGroupLayout,
-                    renderer.modelBindGroupLayout,
-                    renderer.materialBindGroupLayout
-                ]
-            }),
-            depthStencil: {
-                depthWriteEnabled: true,
-                depthCompare: "less",
-                format: "depth24plus"
-            },
-            vertex: {
-                module: renderer.device.createShaderModule({
-                    label: "naive vert shader",
-                    code: shaders.naiveVertSrc
-                }),
-                buffers: [renderer.vertexBufferLayout]
-            }
+        this.renderTexture = renderer.device.createTexture({
+            size: [renderer.canvas.width, renderer.canvas.height],
+            format: renderer.canvasFormat,
+            usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_SRC
         });
-
-        this.forwardPlusPipeline = renderer.device.createRenderPipeline({
+        this.renderTextureView = this.renderTexture.createView();
+        
+        this.pipeline = renderer.device.createRenderPipeline({
             label: "forward plus pipeline",
             layout: renderer.device.createPipelineLayout({
                 label: "forward plus pipeline layout",
@@ -125,19 +103,11 @@ export class ForwardPlusRenderer extends renderer.Renderer {
                 ]
             },
             depthStencil: {
-                format: "depth24plus",
                 depthWriteEnabled: true,
-                depthCompare: "less-equal"  // Pre-Depth
+                depthCompare: "less",
+                format: "depth24plus"
             }
         });
-
-        // Post Processing
-        this.renderTexture = renderer.device.createTexture({
-            size: [renderer.canvas.width, renderer.canvas.height],
-            format: "rgba16float",
-            usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING
-        });
-        this.renderTextureView = this.renderTexture.createView();
     }
 
     override draw() {
@@ -148,9 +118,17 @@ export class ForwardPlusRenderer extends renderer.Renderer {
         const canvasTextureView = renderer.context.getCurrentTexture().createView();
 
         // 1st Pass
-        const depthPrePass = encoder.beginRenderPass({
-            label: "depth pre pass",
-            colorAttachments: [],   // No Need For Color
+        this.lights.doLightClustering(encoder);
+
+        // 2nd Pass
+        const forwardPlusPass = encoder.beginRenderPass({
+            label: "forward plus pass",
+            colorAttachments: [{
+                view: (this.enableBloom || this.enableToon) ? this.renderTextureView : canvasTextureView,
+                clearValue: [0, 0, 0, 0],
+                loadOp: "clear",
+                storeOp: "store"
+            }],
             depthStencilAttachment: {
                 view: this.depthTextureView,
                 depthClearValue: 1.0,
@@ -158,41 +136,8 @@ export class ForwardPlusRenderer extends renderer.Renderer {
                 depthStoreOp: "store"
             }
         });
-        depthPrePass.setPipeline(this.depthPrePassPipeline);
-        depthPrePass.setBindGroup(shaders.constants.bindGroup_scene, this.sceneUniformsBindGroup);
 
-        this.scene.iterate(node => {
-            depthPrePass.setBindGroup(shaders.constants.bindGroup_model, node.modelBindGroup);
-        }, material => {
-            depthPrePass.setBindGroup(shaders.constants.bindGroup_material, material.materialBindGroup);
-        }, primitive => {
-            depthPrePass.setVertexBuffer(0, primitive.vertexBuffer);
-            depthPrePass.setIndexBuffer(primitive.indexBuffer, 'uint32');
-            depthPrePass.drawIndexed(primitive.numIndices);
-        });
-
-        depthPrePass.end();
-
-        // 2nd Pass
-        this.lights.doLightClustering(encoder);
-
-        // 3rd Pass
-        const forwardPlusPass = encoder.beginRenderPass({
-            label: "forward plus pass",
-            colorAttachments: [{
-                view: canvasTextureView,
-                clearValue: [0, 0, 0, 0],
-                loadOp: "clear",
-                storeOp: "store"
-            }],
-            depthStencilAttachment: {
-                view: this.depthTextureView,
-                depthLoadOp: "load",     // Pre-Depth
-                depthStoreOp: "store"
-            }
-        });
-
-        forwardPlusPass.setPipeline(this.forwardPlusPipeline);
+        forwardPlusPass.setPipeline(this.pipeline);
         forwardPlusPass.setBindGroup(shaders.constants.bindGroup_scene, this.sceneUniformsBindGroup);
 
         this.scene.iterate(node => {
@@ -207,7 +152,10 @@ export class ForwardPlusRenderer extends renderer.Renderer {
 
         forwardPlusPass.end();
 
-        // Submit
-        renderer.device.queue.submit([encoder.finish()]);
+        return {
+            encoder,
+            renderTexture: (this.enableBloom || this.enableToon) ? this.renderTexture : undefined,
+            canvasTextureView
+        };
     }
 }

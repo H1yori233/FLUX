@@ -104,6 +104,12 @@ fn decodeNormal(encoded: vec2f) -> vec3f {
     return normalize(result);
 }
 
+// Post Processing
+fn luminance(color: vec4f) -> f32 {
+    return 0.2125 * color.x + 0.7154 * color.y + 0.0721 * color.z;
+}
+
+// Debug Functions
 fn getDepthDebugColor(fragPos: vec3f) -> vec3f {
     var depth = length(fragPos);
     var normalizedDepth = depth / 30.0f;

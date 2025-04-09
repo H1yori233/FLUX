@@ -8,6 +8,8 @@ export class NaiveRenderer extends renderer.Renderer {
 
     depthTexture: GPUTexture;
     depthTextureView: GPUTextureView;
+    renderTexture: GPUTexture;
+    renderTextureView: GPUTextureView;
 
     pipeline: GPURenderPipeline;
 
@@ -56,6 +58,13 @@ export class NaiveRenderer extends renderer.Renderer {
         });
         this.depthTextureView = this.depthTexture.createView();
 
+        this.renderTexture = renderer.device.createTexture({
+            size: [renderer.canvas.width, renderer.canvas.height],
+            format: renderer.canvasFormat,
+            usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_SRC
+        });
+        this.renderTextureView = this.renderTexture.createView();
+
         this.pipeline = renderer.device.createRenderPipeline({
             layout: renderer.device.createPipelineLayout({
                 label: "naive pipeline layout",
@@ -99,7 +108,7 @@ export class NaiveRenderer extends renderer.Renderer {
             label: "naive render pass",
             colorAttachments: [
                 {
-                    view: canvasTextureView,
+                    view: (this.enableBloom || this.enableToon) ? this.renderTextureView : canvasTextureView,
                     clearValue: [0, 0, 0, 0],
                     loadOp: "clear",
                     storeOp: "store"
@@ -129,6 +138,10 @@ export class NaiveRenderer extends renderer.Renderer {
 
         renderPass.end();
 
-        renderer.device.queue.submit([encoder.finish()]);
+        return {
+            encoder,
+            renderTexture: (this.enableBloom || this.enableToon) ? this.renderTexture : undefined,
+            canvasTextureView
+        };
     }
 }

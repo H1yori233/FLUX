@@ -13,8 +13,8 @@ struct FragmentInput {
 }
 
 fn reconstructWorldPosition(uv: vec2f, depth: f32) -> vec3f {
-    let clipSpacePos = vec4f(uv * 2.0 - 1.0, depth, 1.0);
-    let worldSpacePos = camera.invViewProjMat * clipSpacePos;
+    let clip = vec4f(vec2f(uv.x, 1.0 - uv.y) * 2.0 - 1.0, depth, 1.0);
+    let worldSpacePos = camera.invViewProjMat * clip;
     return worldSpacePos.xyz / worldSpacePos.w;
 }
 
@@ -40,7 +40,6 @@ fn getNumLightDebugColor(cluster : Cluster) -> vec3f {
     return vec3f(lightCount, lightCount, lightCount);
 }
 
-
 @fragment
 fn main(in: FragmentInput) -> @location(0) vec4f {
     let texCoord = in.uv;
@@ -63,7 +62,7 @@ fn main(in: FragmentInput) -> @location(0) vec4f {
     for (var i = 0u; i < cluster.numLights; i++) {
         let lightIdx = cluster.lightIndices[i];
         let light = lightSet.lights[lightIdx];
-        totalLightContrib += calculateLightContrib(light, position, normalize(normal));
+        totalLightContrib += calculateLightContrib(light, position, normal);
     }
 
     let finalColor = albedo.rgb * totalLightContrib;

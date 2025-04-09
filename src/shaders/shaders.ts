@@ -12,11 +12,14 @@ import forwardPlusFragRaw from './forward_plus.fs.wgsl?raw';
 import clusteredDeferredFragRaw from './clustered_deferred.fs.wgsl?raw';
 import clusteredDeferredFullscreenVertRaw from './clustered_deferred_fullscreen.vs.wgsl?raw';
 import clusteredDeferredFullscreenFragRaw from './clustered_deferred_fullscreen.fs.wgsl?raw';
-
 import clusteredOptimizedDeferredFragRaw from './clustered_optimized_deferred/clustered_optimized_deferred.fs.wgsl?raw';
-import clusteredOptimizedDeferredFullscreenVertRaw from './clustered_optimized_deferred/clustered_optimized_deferred_fullscreen.vs.wgsl?raw';
 import clusteredOptimizedDeferredFullscreenFragRaw from './clustered_optimized_deferred/clustered_optimized_deferred_fullscreen.fs.wgsl?raw';
-import clusteredOptimizedDeferredComputeRaw from './clustered_optimized_deferred/clustered_optimized_deferred.cs.wgsl?raw';
+
+import extractBrightnessFragRaw from './post_processing/extract_brightness.fs.wgsl?raw';
+import gaussianBlurFragRaw from './post_processing/gaussian_blur.fs.wgsl?raw';
+import gaussianBlurComputeRaw from './post_processing/gaussian_blur.cs.wgsl?raw';
+import blendFragRaw from './post_processing/blend.fs.wgsl?raw';
+import toonFragRaw from './post_processing/toon.fs.wgsl?raw';
 
 import moveLightsComputeRaw from './move_lights.cs.wgsl?raw';
 import clusteringComputeRaw from './clustering.cs.wgsl?raw';
@@ -34,17 +37,19 @@ export const constants = {
     bindGroup_material: 2,
     bindGroup_gbuffer: 1,
     bindGroup_compute: 2,
+    bindGroup_post_process: 0,
 
     moveLightsWorkgroupSize: 128,
+    gaussianBlurWorkgroupSize: 16,
 
     lightRadius: 2,
     
     // TODO-2
-    maxNumLights: 512,
+    maxNumLights: 64,
 
     workgroupSizeX: 4,
     workgroupSizeY: 4,
-    workgroupSizeZ: 8,
+    workgroupSizeZ: 4,
 
     numClustersX: 16,
     numClustersY: 9,
@@ -71,11 +76,14 @@ export const forwardPlusFragSrc: string = processShaderRaw(forwardPlusFragRaw);
 export const clusteredDeferredFragSrc: string = processShaderRaw(clusteredDeferredFragRaw);
 export const clusteredDeferredFullscreenVertSrc: string = processShaderRaw(clusteredDeferredFullscreenVertRaw);
 export const clusteredDeferredFullscreenFragSrc: string = processShaderRaw(clusteredDeferredFullscreenFragRaw);
-
 export const clusteredOptimizedDeferredFragSrc: string = processShaderRaw(clusteredOptimizedDeferredFragRaw);
-export const clusteredOptimizedDeferredFullscreenVertSrc: string = processShaderRaw(clusteredOptimizedDeferredFullscreenVertRaw);
 export const clusteredOptimizedDeferredFullscreenFragSrc: string = processShaderRaw(clusteredOptimizedDeferredFullscreenFragRaw);
-export const clusteredOptimizedDeferredComputeSrc: string = processShaderRaw(clusteredOptimizedDeferredComputeRaw);
+
+export const extractBrightnessFragSrc: string = processShaderRaw(extractBrightnessFragRaw);
+export const gaussianBlurFragSrc: string = processShaderRaw(gaussianBlurFragRaw);
+export const gaussianBlurComputeSrc: string = processShaderRaw(gaussianBlurComputeRaw);
+export const blendFragSrc: string = processShaderRaw(blendFragRaw);
+export const toonFragSrc: string = processShaderRaw(toonFragRaw);
 
 export const moveLightsComputeSrc: string = processShaderRaw(moveLightsComputeRaw);
 export const clusteringComputeSrc: string = processShaderRaw(clusteringComputeRaw);

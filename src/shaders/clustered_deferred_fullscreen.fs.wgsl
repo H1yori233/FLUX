@@ -58,7 +58,7 @@ fn main(in: FragmentInput) -> @location(0) vec4f {
     for (var i = 0u; i < cluster.numLights; i++) {
         let lightIdx = cluster.lightIndices[i];
         let light = lightSet.lights[lightIdx];
-        totalLightContrib += calculateLightContrib(light, position, normalize(normal));
+        totalLightContrib += calculateLightContrib(light, position, normal);
     }
 
     var finalColor = albedo.rgb * totalLightContrib;

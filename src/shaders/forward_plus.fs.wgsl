@@ -73,7 +73,7 @@ fn main(in: FragmentInput) -> @location(0) vec4f
         totalLightContrib += calculateLightContrib(light, in.pos, normalize(in.nor));
     }
 
-    // var finalColor = diffuseColor.rgb * totalLightContrib;
-    var finalColor = getNumLightDebugColor(cluster);
+    var finalColor = diffuseColor.rgb * totalLightContrib;
+    // var finalColor = getNumLightDebugColor(cluster);
     return vec4(finalColor, 1);
 }

@@ -28,6 +28,9 @@ export class ClusteredDeferredRenderer extends renderer.Renderer {
     gBufferPipeline: GPURenderPipeline;
     fullscreenPipeline: GPURenderPipeline;
 
+    renderTexture: GPUTexture;
+    renderTextureView: GPUTextureView;
+
     constructor(stage: Stage) {
         super(stage);
         // TODO-3: initialize layouts, pipelines, textures, etc. needed for Forward+ here
@@ -230,15 +233,18 @@ export class ClusteredDeferredRenderer extends renderer.Renderer {
                 ]
             }
         });
+
+        // 添加用于bloom的渲染纹理
+        this.renderTexture = renderer.device.createTexture({
+            size: textureSize,
+            format: renderer.canvasFormat,
+            usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_SRC
+        });
+        this.renderTextureView = this.renderTexture.createView();
     }
 
-    override draw() {
-        const encoder = renderer.device.createCommandEncoder();
-        
-        // 1st Pass
-        this.lights.doLightClustering(encoder);
-        
-        // 2nd Pass
+    encodeGBufferPass(encoder: GPUCommandEncoder)
+    {
         const gBufferPass = encoder.beginRenderPass({
             label: "G-buffer rendering",
             colorAttachments: [
@@ -283,14 +289,15 @@ export class ClusteredDeferredRenderer extends renderer.Renderer {
         });
         
         gBufferPass.end();
-        
-        // 3rd Pass
-        const canvasTextureView = renderer.context.getCurrentTexture().createView();
+    }
+
+    encodeFullscreenPass(encoder: GPUCommandEncoder, canvasTextureView: GPUTextureView)
+    {
         const fullscreenPass = encoder.beginRenderPass({
             label: "fullscreen lighting calculation",
             colorAttachments: [
                 {
-                    view: canvasTextureView,
+                    view: (this.enableBloom || this.enableToon) ? this.renderTextureView : canvasTextureView,
                     clearValue: [0, 0, 0, 1],
                     loadOp: "clear",
                     storeOp: "store"
@@ -304,8 +311,25 @@ export class ClusteredDeferredRenderer extends renderer.Renderer {
         fullscreenPass.draw(4);  // Draw fullscreen quad (composed of two triangles in vertex shader)
         
         fullscreenPass.end();
+    }
+
+    override draw() {
+        const encoder = renderer.device.createCommandEncoder();
+        const canvasTextureView = renderer.context.getCurrentTexture().createView();
         
-        // Submit commands
-        renderer.device.queue.submit([encoder.finish()]);
+        // 1st Pass
+        this.lights.doLightClustering(encoder);
+        
+        // 2nd Pass
+        this.encodeGBufferPass(encoder);
+        
+        // 3rd Pass
+        this.encodeFullscreenPass(encoder, canvasTextureView);
+        
+        return {
+            encoder,
+            renderTexture: (this.enableBloom || this.enableToon) ? this.renderTexture : undefined,
+            canvasTextureView
+        };
     }
 }

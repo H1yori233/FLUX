@@ -24,14 +24,8 @@ export class ClusteredOptimizedDeferredRenderer extends renderer.Renderer {
     gBufferPipeline: GPURenderPipeline;
     fullscreenPipeline: GPURenderPipeline;
 
-    // Post Processing
     renderTexture: GPUTexture;
     renderTextureView: GPUTextureView;
-
-    // Compute Pass
-    computeBindGroupLayout: GPUBindGroupLayout;
-    computeBindGroup: GPUBindGroup;
-    computePipeline: GPUComputePipeline;
 
     constructor(stage: Stage) {
         super(stage);
@@ -172,7 +166,7 @@ export class ClusteredOptimizedDeferredRenderer extends renderer.Renderer {
             vertex: {
                 module: renderer.device.createShaderModule({
                     label: "fullscreen vertex shader",
-                    code: shaders.clusteredOptimizedDeferredFullscreenVertSrc
+                    code: shaders.clusteredDeferredFullscreenVertSrc
                 }),
                 entryPoint: "main"
             },
@@ -186,118 +180,22 @@ export class ClusteredOptimizedDeferredRenderer extends renderer.Renderer {
                 ]
             }
         });
-        
-        // Post Processing
+
+        // 添加用于bloom的渲染纹理
         this.renderTexture = renderer.device.createTexture({
-            size: [renderer.canvas.width, renderer.canvas.height],
-            format: "rgba8unorm",
-            usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_SRC
+            size: textureSize,
+            format: renderer.canvasFormat,
+            usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_SRC
         });
         this.renderTextureView = this.renderTexture.createView();
-
-        // Compute Pass
-        this.computeBindGroupLayout = renderer.device.createBindGroupLayout({
-            label: "compute bind group layout",
-            entries: [
-                {
-                    binding: 0,
-                    visibility: GPUShaderStage.COMPUTE,
-                    storageTexture: {
-                        access: "write-only",
-                        format: "rgba8unorm",
-                        viewDimension: "2d"
-                    }
-                }
-            ]
-        });
-
-        this.computeBindGroup = renderer.device.createBindGroup({
-            label: "compute bind group",
-            layout: this.computeBindGroupLayout,
-            entries: [
-                {
-                    binding: 0,
-                    resource: this.renderTextureView
-                }
-            ]
-        });
-
-        this.computePipeline = renderer.device.createComputePipeline({
-            label: "compute pipeline",
-            layout: renderer.device.createPipelineLayout({
-                label: "compute pipeline layout",
-                bindGroupLayouts: [
-                    this.sceneUniformsBindGroupLayout,
-                    this.gBufferBindGroupLayout,
-                    this.computeBindGroupLayout
-                ]
-            }),
-            compute: {
-                module: renderer.device.createShaderModule({
-                    label: "compute shader",
-                    code: shaders.clusteredOptimizedDeferredComputeSrc
-                }),
-                entryPoint: "main"
-            }
-        });
     }
 
-    encodeFullscreenPass(encoder: GPUCommandEncoder)
+    initGBuffer() {
+        
+    }
+
+    encodeGBufferPass(encoder: GPUCommandEncoder)
     {
-        const canvasTextureView = renderer.context.getCurrentTexture().createView();
-        const fullscreenPass = encoder.beginRenderPass({
-            label: "fullscreen lighting calculation",
-            colorAttachments: [
-                {
-                    view: canvasTextureView,
-                    clearValue: [0, 0, 0, 1],
-                    loadOp: "clear",
-                    storeOp: "store"
-                }
-            ]
-        });
-        
-        fullscreenPass.setPipeline(this.fullscreenPipeline);
-        fullscreenPass.setBindGroup(shaders.constants.bindGroup_scene, this.sceneUniformsBindGroup);
-        fullscreenPass.setBindGroup(shaders.constants.bindGroup_gbuffer, this.gBufferBindGroup);
-        fullscreenPass.draw(4);  // Draw fullscreen quad (composed of two triangles in vertex shader)
-        
-        fullscreenPass.end();
-    }
-
-    encodeComputePass(encoder: GPUCommandEncoder)
-    {
-        // const canvasTextureView = renderer.context.getCurrentTexture().createView();
-        const computePass = encoder.beginComputePass();
-
-        computePass.setPipeline(this.computePipeline);
-        computePass.setBindGroup(shaders.constants.bindGroup_scene, this.sceneUniformsBindGroup);
-        computePass.setBindGroup(shaders.constants.bindGroup_gbuffer, this.gBufferBindGroup);
-        computePass.setBindGroup(shaders.constants.bindGroup_compute, this.computeBindGroup);
-        
-        const workgroupSizeX = 8;
-        const workgroupSizeY = 8;
-        const workgroupCountX = Math.ceil(renderer.canvas.width / workgroupSizeX);
-        const workgroupCountY = Math.ceil(renderer.canvas.height / workgroupSizeY);
-        
-        computePass.dispatchWorkgroups(workgroupCountX, workgroupCountY);
-        computePass.end();
-
-        const canvasTexture = renderer.context.getCurrentTexture();
-        encoder.copyTextureToTexture(
-            { texture: this.renderTexture },
-            { texture: canvasTexture },
-            [renderer.canvas.width, renderer.canvas.height]
-        );
-    }
-
-    override draw() {
-        const encoder = renderer.device.createCommandEncoder();
-        
-        // 1st Pass
-        this.lights.doLightClustering(encoder);
-        
-        // 2nd Pass
         const gBufferPass = encoder.beginRenderPass({
             label: "G-buffer rendering",
             colorAttachments: [
@@ -330,12 +228,47 @@ export class ClusteredOptimizedDeferredRenderer extends renderer.Renderer {
         });
         
         gBufferPass.end();
+    }
+
+    encodeFullscreenPass(encoder: GPUCommandEncoder, canvasTextureView: GPUTextureView)
+    {
+        const fullscreenPass = encoder.beginRenderPass({
+            label: "fullscreen lighting calculation",
+            colorAttachments: [
+                {
+                    view: (this.enableBloom || this.enableToon) ? this.renderTextureView : canvasTextureView,
+                    clearValue: [0, 0, 0, 1],
+                    loadOp: "clear",
+                    storeOp: "store"
+                }
+            ]
+        });
+        
+        fullscreenPass.setPipeline(this.fullscreenPipeline);
+        fullscreenPass.setBindGroup(shaders.constants.bindGroup_scene, this.sceneUniformsBindGroup);
+        fullscreenPass.setBindGroup(shaders.constants.bindGroup_gbuffer, this.gBufferBindGroup);
+        fullscreenPass.draw(4);  // Draw fullscreen quad (composed of two triangles in vertex shader)
+        
+        fullscreenPass.end();
+    }
+
+    override draw() {
+        const encoder = renderer.device.createCommandEncoder();
+        const canvasTextureView = renderer.context.getCurrentTexture().createView();
+        
+        // 1st Pass
+        this.lights.doLightClustering(encoder);
+        
+        // 2nd Pass
+        this.encodeGBufferPass(encoder);
         
         // 3rd Pass
-        this.encodeFullscreenPass(encoder);
-        // this.encodeComputePass(encoder);
+        this.encodeFullscreenPass(encoder, canvasTextureView);
 
-        // Submit commands
-        renderer.device.queue.submit([encoder.finish()]);
+        return {
+            encoder,
+            renderTexture: (this.enableBloom || this.enableToon) ? this.renderTexture : undefined,
+            canvasTextureView
+        };
     }
 }
