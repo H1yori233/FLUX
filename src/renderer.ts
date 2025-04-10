@@ -17,11 +17,6 @@ export const fovYDegrees = 45;
 export var modelBindGroupLayout: GPUBindGroupLayout;
 export var materialBindGroupLayout: GPUBindGroupLayout;
 
-// Bloom parameters
-export var bloomThresholdBuffer: GPUBuffer;
-export var bloomIntensityBuffer: GPUBuffer;
-export var bloomStrengthBuffer: GPUBuffer;
-export var kernelSizeBuffer: GPUBuffer;
 
 // CHECKITOUT: this function initializes WebGPU and also creates some bind group layouts shared by all the renderers
 export async function initWebGPU() {
@@ -88,27 +83,6 @@ export async function initWebGPU() {
             }
         ]
     });
-
-    // Initialize Bloom buffers
-    bloomThresholdBuffer = device.createBuffer({
-        size: 4,
-        usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
-    });
-
-    bloomIntensityBuffer = device.createBuffer({
-        size: 4,
-        usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
-    });
-
-    bloomStrengthBuffer = device.createBuffer({
-        size: 4,
-        usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
-    });
-
-    kernelSizeBuffer = device.createBuffer({
-        size: 4,
-        usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
-    });
 }
 
 export const vertexBufferLayout: GPUVertexBufferLayout = {
@@ -146,6 +120,9 @@ export abstract class Renderer {
     protected enableBloom: boolean = false;
     protected enableToon: boolean = false;
 
+    protected pingTexture: GPUTexture;
+    protected pongTexture: GPUTexture;
+
     constructor(stage: Stage) {
         this.scene = stage.scene;
         this.lights = stage.lights;
@@ -157,10 +134,22 @@ export abstract class Renderer {
         this.frameRequestId = requestAnimationFrame((t) => this.onFrame(t));
         this.enableBloom = false;
         this.enableToon = false;
+
+        const textureDesc: GPUTextureDescriptor = {
+            size: [canvas.width, canvas.height],
+            format: canvasFormat, 
+            usage: GPUTextureUsage.COPY_SRC | GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT,
+       };
+       this.pingTexture = device.createTexture({...textureDesc, label: "ping texture"});
+       this.pongTexture = device.createTexture({...textureDesc, label: "pong texture"});
+   
     }
 
     stop(): void {
         cancelAnimationFrame(this.frameRequestId);
+
+        this.pingTexture?.destroy();
+        this.pongTexture?.destroy();
     }
 
     toggleBloom(): void {
@@ -187,49 +176,67 @@ export abstract class Renderer {
 
         const result = this.draw();
         const { encoder, renderTexture, canvasTextureView } = result;
+        if (!renderTexture) {
+            device.queue.submit([encoder.finish()]);
+            this.stats.end();
+            this.prevTime = time;
+            this.frameRequestId = requestAnimationFrame((t) => this.onFrame(t));
+            return;
+        }
+        
+        const activeEffects = [];
+        if (this.enableToon) activeEffects.push(this.toon);
+        if (this.enableBloom) activeEffects.push(this.bloom);
 
-        if (this.enableToon && renderTexture) {
-            // Copy the render result to toon's render texture
+        if (activeEffects.length === 0) {
             encoder.copyTextureToTexture(
                 { texture: renderTexture },
-                { texture: this.toon.renderTexture },
+                { texture: context.getCurrentTexture() },
                 [canvas.width, canvas.height]
             );
-            this.toon.doToon(encoder, canvasTextureView);
-        } else if (this.enableBloom && renderTexture) {
-            // Copy the render result to bloom's render texture
-            encoder.copyTextureToTexture(
-                { texture: renderTexture },
-                { texture: this.bloom.renderTexture },
-                [canvas.width, canvas.height]
-            );
-            this.bloom.doBloom(encoder, canvasTextureView);
+        } else {
+            let currentSourceTexture = renderTexture;
+            let ping = true;
+
+            for (let i = 0; i < activeEffects.length; i++) {
+                const effect = activeEffects[i];
+                const isLastEffect = (i === activeEffects.length - 1);
+
+                // Determine the output target for this effect pass
+                const destinationView = isLastEffect
+                    ? canvasTextureView
+                    : (ping ? this.pingTexture.createView() : this.pongTexture.createView());
+                const destinationTextureForNextSource = isLastEffect
+                    ? null
+                    : (ping ? this.pingTexture : this.pongTexture);
+
+                // Copy the current input data (from previous step or original render)
+                // into the effect's designated input texture
+                encoder.copyTextureToTexture(
+                    { texture: currentSourceTexture },
+                    { texture: effect.renderTexture },
+                    [canvas.width, canvas.height]
+                );
+
+                // Apply the effect, rendering into the destinationView
+                if (effect === this.toon) {
+                    this.toon.doToon(encoder, destinationView);
+                } else if (effect === this.bloom) {
+                    this.bloom.doBloom(encoder, destinationView);
+                }
+
+                // Prepare for the next iteration
+                if (!isLastEffect) {
+                    // The texture we just rendered *to* becomes the source for the next effect
+                    currentSourceTexture = destinationTextureForNextSource!;
+                    ping = !ping;
+                }
+            }
         }
 
         device.queue.submit([encoder.finish()]);
-
         this.stats.end();
-
         this.prevTime = time;
         this.frameRequestId = requestAnimationFrame((t) => this.onFrame(t));
     }
-}
-
-export function updateBloomParams(params: {
-    threshold: number;
-    intensity: number;
-    strength: number;
-    kernelSize: number;
-}) {
-    const thresholdData = new Float32Array([params.threshold]);
-    device.queue.writeBuffer(bloomThresholdBuffer, 0, thresholdData);
-    
-    const intensityData = new Float32Array([params.intensity]);
-    device.queue.writeBuffer(bloomIntensityBuffer, 0, intensityData);
-    
-    const strengthData = new Float32Array([params.strength]);
-    device.queue.writeBuffer(bloomStrengthBuffer, 0, strengthData);
-    
-    const kernelSizeData = new Uint32Array([params.kernelSize]);
-    device.queue.writeBuffer(kernelSizeBuffer, 0, kernelSizeData);
 }

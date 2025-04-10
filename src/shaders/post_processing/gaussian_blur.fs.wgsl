@@ -1,43 +1,39 @@
 struct FragmentInput {
-    @builtin(position) fragCoord: vec4f,
+    @builtin(position) position: vec4f,
     @location(0) uv: vec2f
 }
 
-@group(0) @binding(0) var inputTexture: texture_2d<f32>;
-@group(0) @binding(1) var<uniform> horizontal: u32;
-@group(0) @binding(2) var<uniform> kernelSize: u32;
+@group(${bindGroup_post_process}) @binding(0) var inputTexture: texture_2d<f32>;
+@group(${bindGroup_post_process}) @binding(1) var inputSampler: sampler;
+@group(${bindGroup_post_process}) @binding(2) var<uniform> horizontal: u32;
+@group(${bindGroup_post_process}) @binding(3) var<uniform> kernelSize: u32;
 
-struct VertexOutput {
-    @builtin(position) position: vec4f,
-    @location(0) fragCoord: vec2f,
-}
+const weights = array<f32, 8>(
+    0.174697, 0.160230, 0.122306, 0.080840, 0.046310, 0.022944, 0.009864, 0.003674
+);
 
 @fragment
-fn main(in: VertexOutput) -> @location(0) vec4f {
-    // let weights = array<f32, 15>(
-    //     0.227027, 0.1945946, 0.1216216, 0.054054, 0.0262162,
-    //     0.0, 0.0, 0.0, 0.0, 0.0,
-    //     0.0, 0.0, 0.0, 0.0, 0.0
-    // );
-    
-    var result = textureLoad(inputTexture, vec2i(in.fragCoord.xy), 0);
-    // var result = textureLoad(inputTexture, vec2i(in.fragCoord.xy), 0) * weights[0];
-    
-    // for (var i: u32 = 1u; i < kernelSize; i++) {
-    //     var offset = vec2f(f32(i) * (1.0 / f32(textureDimensions(inputTexture).x)), 0.0);
-    //     if (horizontal == 1u) {
-    //         offset.y = 0.0;
-    //     } else {
-    //         offset.x = 0.0;
-    //     }
-        
-    //     let pos = vec2i(in.fragCoord.xy) + vec2i(offset);
-    //     result += textureLoad(inputTexture, pos, 0) * weights[i];
-        
-    //     let negPos = vec2i(in.fragCoord.xy) - vec2i(offset);
-    //     result += textureLoad(inputTexture, negPos, 0) * weights[i];
-    // }
-    
+fn main(in: FragmentInput) -> @location(0) vec4f {
+    let texelSize = vec2f(1.0 / f32(textureDimensions(inputTexture).x), 1.0 / f32(textureDimensions(inputTexture).y));
+    var result = textureSample(inputTexture, inputSampler, in.uv) * weights[0];
+
+    for (var i: u32 = 1u; i <= 8u; i++) {
+        // Offset calculation remains commented out
+        let offsetFactor = f32(i);
+        var offset = vec2f(0.0, 0.0);
+        if (horizontal == 1u) {
+            offset.x = offsetFactor * texelSize.x;
+        } else {
+            offset.y = offsetFactor * texelSize.y;
+        }
+
+        // Comment out weight access for testing
+        let weight = weights[i]; 
+
+        // Texture sampling lines remain commented out
+        result += textureSample(inputTexture, inputSampler, in.uv + offset) * weight;
+        result += textureSample(inputTexture, inputSampler, in.uv - offset) * weight;
+    }
     return result;
-    // return vec4f(1.0, 1.0, 0.0, 1.0);
 } 
+

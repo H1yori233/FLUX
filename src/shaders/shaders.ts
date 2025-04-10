@@ -17,7 +17,6 @@ import clusteredOptimizedDeferredFullscreenFragRaw from './clustered_optimized_d
 
 import extractBrightnessFragRaw from './post_processing/extract_brightness.fs.wgsl?raw';
 import gaussianBlurFragRaw from './post_processing/gaussian_blur.fs.wgsl?raw';
-import gaussianBlurComputeRaw from './post_processing/gaussian_blur.cs.wgsl?raw';
 import blendFragRaw from './post_processing/blend.fs.wgsl?raw';
 import toonFragRaw from './post_processing/toon.fs.wgsl?raw';
 
@@ -81,7 +80,6 @@ export const clusteredOptimizedDeferredFullscreenFragSrc: string = processShader
 
 export const extractBrightnessFragSrc: string = processShaderRaw(extractBrightnessFragRaw);
 export const gaussianBlurFragSrc: string = processShaderRaw(gaussianBlurFragRaw);
-export const gaussianBlurComputeSrc: string = processShaderRaw(gaussianBlurComputeRaw);
 export const blendFragSrc: string = processShaderRaw(blendFragRaw);
 export const toonFragSrc: string = processShaderRaw(toonFragRaw);
 

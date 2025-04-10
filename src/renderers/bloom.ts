@@ -5,25 +5,35 @@ export class Bloom {
     renderTexture: GPUTexture;
     renderTextureView: GPUTextureView;
     
+    // Bloom parameters
+    thresholdBuffer: GPUBuffer;
+    intensityBuffer: GPUBuffer;
+    strengthBuffer: GPUBuffer; // Assuming strength is also needed later for blur passes
+    kernelSizeBuffer: GPUBuffer; // Assuming kernelSize is also needed later for blur passes
+    horizontalBuffer: GPUBuffer;
+
+    // --- Brightness Extract ---
     brightnessExtractGroupLayout: GPUBindGroupLayout;
     brightnessExtractGroup: GPUBindGroup;
     brightnessExtractPipeline: GPURenderPipeline;
     brightnessExtractTexture: GPUTexture;
     brightnessExtractTextureView: GPUTextureView;
 
-    blurComputeLayout: GPUBindGroupLayout;
-    blurHorizontalComputeGroup: GPUBindGroup;
-    blurVerticalComputeGroup: GPUBindGroup;
-    blurComputePipeline: GPUComputePipeline;
-    horizontalBlurTexture: GPUTexture;
-    horizontalBlurTextureView: GPUTextureView;
-    verticalBlurTexture: GPUTexture;
-    verticalBlurTextureView: GPUTextureView;
-    horizontalFlagBuffer: GPUBuffer;
-    verticalFlagBuffer: GPUBuffer;
+    // --- Gaussian Blur ---
+    blurGroupA: GPUBindGroup;
+    blurGroupB: GPUBindGroup;
+    blurGroupLayout: GPUBindGroupLayout;
+    blurPipeline: GPURenderPipeline;
+    blurTextureA: GPUTexture;
+    blurTextureAView: GPUTextureView;
+    blurTextureB: GPUTexture;
+    blurTextureBView: GPUTextureView;
+    sampler: GPUSampler;
 
-    blendPipeline: GPURenderPipeline;
+    // --- Blend ---
+    blendGroup : GPUBindGroup;
     blendGroupLayout: GPUBindGroupLayout;
+    blendPipeline: GPURenderPipeline;
 
     constructor() {
         this.renderTexture = renderer.device.createTexture({
@@ -33,6 +43,47 @@ export class Bloom {
         });
         this.renderTextureView = this.renderTexture.createView();
         
+        // Initialize Bloom buffers
+        this.thresholdBuffer = renderer.device.createBuffer({
+            label: "bloom threshold buffer",
+            size: 4,
+            usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
+        });
+        renderer.device.queue.writeBuffer(this.thresholdBuffer, 0, new Float32Array([0.8])); // Default threshold
+
+        this.intensityBuffer = renderer.device.createBuffer({
+            label: "bloom intensity buffer",
+            size: 4,
+            usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
+        });
+        renderer.device.queue.writeBuffer(this.intensityBuffer, 0, new Float32Array([1.0])); // Default intensity
+
+        this.strengthBuffer = renderer.device.createBuffer({
+            label: "bloom strength buffer",
+            size: 4,
+            usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
+        });
+        renderer.device.queue.writeBuffer(this.strengthBuffer, 0, new Float32Array([1.0])); // Default strength
+
+        this.kernelSizeBuffer = renderer.device.createBuffer({
+            label: "bloom kernel size buffer",
+            size: 4,
+            usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
+        });
+        renderer.device.queue.writeBuffer(this.kernelSizeBuffer, 0, new Uint32Array([5])); // Default kernel size
+        this.horizontalBuffer = renderer.device.createBuffer({ 
+            size: 4, 
+            usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST 
+        });
+
+        // --- Brightness Extract Resources ---
+        this.brightnessExtractTexture = renderer.device.createTexture({
+            size: [renderer.canvas.width, renderer.canvas.height],
+            format: renderer.canvasFormat,
+            usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_SRC
+        });
+        this.brightnessExtractTextureView = this.brightnessExtractTexture.createView();
+
         this.brightnessExtractGroupLayout = renderer.device.createBindGroupLayout({
             label: "brightness extract bind group layout",
             entries: [
@@ -64,11 +115,11 @@ export class Bloom {
                 },
                 {
                     binding: 1,
-                    resource: { buffer: renderer.bloomThresholdBuffer }
+                    resource: { buffer: this.thresholdBuffer }
                 },
                 {
                     binding: 2,
-                    resource: { buffer: renderer.bloomIntensityBuffer }
+                    resource: { buffer: this.intensityBuffer }
                 }
             ]
         });
@@ -98,186 +149,122 @@ export class Bloom {
                 ]
             }
         });
-        
-        this.brightnessExtractTexture = renderer.device.createTexture({
+
+        // --- Gaussian Blur Resources ---
+        this.blurTextureA = renderer.device.createTexture({
+            label: "blur ping texture",
             size: [renderer.canvas.width, renderer.canvas.height],
             format: renderer.canvasFormat,
-            usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_SRC | GPUTextureUsage.COPY_DST | GPUTextureUsage.STORAGE_BINDING
+            usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_SRC
         });
-        this.brightnessExtractTextureView = this.brightnessExtractTexture.createView();
-
-        // Blur
-        this.horizontalBlurTexture = renderer.device.createTexture({
+        this.blurTextureAView = this.blurTextureA.createView();
+        this.blurTextureB = renderer.device.createTexture({
+            label: "blur pong texture",
             size: [renderer.canvas.width, renderer.canvas.height],
             format: renderer.canvasFormat,
-            usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.COPY_SRC | GPUTextureUsage.COPY_DST
+            usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_SRC
         });
-        this.horizontalBlurTextureView = this.horizontalBlurTexture.createView();
+        this.blurTextureBView = this.blurTextureB.createView();
+        this.sampler = renderer.device.createSampler({ magFilter: 'linear', minFilter: 'linear' });
 
-        this.verticalBlurTexture = renderer.device.createTexture({
-            size: [renderer.canvas.width, renderer.canvas.height],
-            format: renderer.canvasFormat,
-            usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.COPY_SRC | GPUTextureUsage.COPY_DST
-        });
-        this.verticalBlurTextureView = this.verticalBlurTexture.createView();
-        
-        // flag
-        this.horizontalFlagBuffer = renderer.device.createBuffer({
-            size: 4,
-            usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
-        });
-        this.verticalFlagBuffer = renderer.device.createBuffer({
-            size: 4,
-            usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
-        });
-        renderer.device.queue.writeBuffer(this.horizontalFlagBuffer, 0, new Uint32Array([1])); // 1表示水平
-        renderer.device.queue.writeBuffer(this.verticalFlagBuffer, 0, new Uint32Array([0])); // 0表示垂直
-
-        this.blurComputeLayout = renderer.device.createBindGroupLayout({
-            label: "blur compute bind group layout",
+        this.blurGroupLayout = renderer.device.createBindGroupLayout({
+            label: "gaussian blur BGL",
             entries: [
-                { // Input texture
-                    binding: 0,
-                    visibility: GPUShaderStage.COMPUTE,
-                    texture: { sampleType: "float" }
-                },
-                { // Direction flag (horizontal or vertical)
-                    binding: 1,
-                    visibility: GPUShaderStage.COMPUTE,
-                    buffer: { type: "uniform" }
-                },
-                { // Kernel size
-                    binding: 2,
-                    visibility: GPUShaderStage.COMPUTE,
-                    buffer: { type: "uniform" }
-                },
-                { // Output texture
-                    binding: 3,
-                    visibility: GPUShaderStage.COMPUTE,
-                    storageTexture: {
-                        access: "write-only",
-                        format: renderer.canvasFormat
-                    }
-                }
+                { binding: 0, visibility: GPUShaderStage.FRAGMENT, texture: {} },                   // Input Texture View
+                { binding: 1, visibility: GPUShaderStage.FRAGMENT, sampler: {} },                   // Sampler
+                { binding: 2, visibility: GPUShaderStage.FRAGMENT, buffer: { type: "uniform" } },   // horizontal
+                { binding: 3, visibility: GPUShaderStage.FRAGMENT, buffer: { type: "uniform" } },   // kernelSize
+            ]
+        });
+        this.blurGroupA = renderer.device.createBindGroup({
+            label: "blur BG A (horizontal)",
+            layout: this.blurGroupLayout,
+            entries: [
+                { binding: 0, resource: this.brightnessExtractTextureView }, // Input is brightness result
+                { binding: 1, resource: this.sampler },
+                { binding: 2, resource: { buffer: this.horizontalBuffer } },
+                { binding: 3, resource: { buffer: this.kernelSizeBuffer } },
+            ]
+        });
+        this.blurGroupB = renderer.device.createBindGroup({
+            label: "blur BG B (vertical)",
+            layout: this.blurGroupLayout,
+            entries: [
+                { binding: 0, resource: this.blurTextureAView }, // Input is horizontal blur result
+                { binding: 1, resource: this.sampler },
+                { binding: 2, resource: { buffer: this.horizontalBuffer } },
+                { binding: 3, resource: { buffer: this.kernelSizeBuffer } },
             ]
         });
 
-        this.blurHorizontalComputeGroup = renderer.device.createBindGroup({
-            label: "horizontal blur compute bind group",
-            layout: this.blurComputeLayout,
-            entries: [
-                {
-                    binding: 0,
-                    resource: this.brightnessExtractTextureView
-                },
-                {
-                    binding: 1, 
-                    resource: { buffer: this.horizontalFlagBuffer }
-                },
-                {
-                    binding: 2,
-                    resource: { buffer: renderer.kernelSizeBuffer }
-                },
-                {
-                    binding: 3,
-                    resource: this.horizontalBlurTextureView
-                }
-            ]
-        });
-        this.blurVerticalComputeGroup = renderer.device.createBindGroup({
-            label: "vertical blur compute bind group",
-            layout: this.blurComputeLayout,
-            entries: [
-                {
-                    binding: 0,
-                    resource: this.horizontalBlurTextureView
-                },
-                {
-                    binding: 1,
-                    resource: { buffer: this.verticalFlagBuffer }
-                },
-                {
-                    binding: 2,
-                    resource: { buffer: renderer.kernelSizeBuffer }
-                },
-                {
-                    binding: 3,
-                    resource: this.verticalBlurTextureView
-                }
-            ]
-        });
-
-        this.blurComputePipeline = renderer.device.createComputePipeline({
-            label: "gaussian blur compute pipeline",
-            layout: renderer.device.createPipelineLayout({
-                label: "gaussian blur compute pipeline layout",
-                bindGroupLayouts: [
-                    this.blurComputeLayout
-                ]
-            }),
-            compute: {
-                module: renderer.device.createShaderModule({
-                    label: "gaussian blur compute shader",
-                    code: shaders.gaussianBlurComputeSrc
-                }),
-                entryPoint: "main"
+        this.blurPipeline = renderer.device.createRenderPipeline({
+            label: "gaussian blur pipeline",
+            layout: renderer.device.createPipelineLayout({ bindGroupLayouts: [this.blurGroupLayout] }),
+            vertex: { 
+                module: renderer.device.createShaderModule({ code: shaders.clusteredDeferredFullscreenVertSrc }),
+                buffers: []
+            },
+            fragment: {
+                module: renderer.device.createShaderModule({ code: shaders.gaussianBlurFragSrc }), // Make sure shaders.ts exports this
+                targets: [{ format: renderer.canvasFormat }]
             }
         });
 
+        // --- Blend Resources ---
         this.blendGroupLayout = renderer.device.createBindGroupLayout({
-            label: "blend bind group layout",
+            label: "blend BGL",
             entries: [
-                { // Bloom result texture
-                    binding: 0,
-                    visibility: GPUShaderStage.FRAGMENT,
-                    texture: { sampleType: "float" }
-                },
-                { // Original scene texture
-                    binding: 1,
-                    visibility: GPUShaderStage.FRAGMENT,
-                    texture: { sampleType: "float" }
-                },
-                { // Bloom strength uniform
-                    binding: 2,
-                    visibility: GPUShaderStage.FRAGMENT,
-                    buffer: { type: "uniform" }
-                }
+                { binding: 0, visibility: GPUShaderStage.FRAGMENT, texture: {} },   // Input Texture View
+                { binding: 1, visibility: GPUShaderStage.FRAGMENT, texture: {} },   // Blur Texture View
+                { binding: 2, visibility: GPUShaderStage.FRAGMENT, sampler: {} },   // Sampler
+                { binding: 3, visibility: GPUShaderStage.FRAGMENT, buffer: { type: "uniform" } },
+            ]
+        });
+        this.blendGroup = renderer.device.createBindGroup({
+            label: "blend BG",
+            layout: this.blendGroupLayout,
+            entries: [
+                { binding: 0, resource: this.renderTextureView },
+                { binding: 1, resource: this.blurTextureBView },
+                { binding: 2, resource: this.sampler },
+                { binding: 3, resource: { buffer: this.strengthBuffer } },
             ]
         });
 
         this.blendPipeline = renderer.device.createRenderPipeline({
             label: "blend pipeline",
-            layout: renderer.device.createPipelineLayout({
-                label: "blend pipeline layout",
-                bindGroupLayouts: [
-                    this.blendGroupLayout
-                ]
-            }),
-            vertex: {
-                module: renderer.device.createShaderModule({
-                    label: "fullscreen vertex shader",
-                    code: shaders.clusteredDeferredFullscreenVertSrc
-                }),
+            layout: renderer.device.createPipelineLayout({ bindGroupLayouts: [this.blendGroupLayout] }),
+            vertex: { 
+                module: renderer.device.createShaderModule({ code: shaders.clusteredDeferredFullscreenVertSrc }),
                 buffers: []
             },
             fragment: {
-                module: renderer.device.createShaderModule({
-                    label: "blend fragment shader",
-                    code: shaders.blendFragSrc
-                }),
-                targets: [
-                    { format: renderer.canvasFormat }
-                ]
+                module: renderer.device.createShaderModule({ code: shaders.blendFragSrc }),
+                targets: [{ format: renderer.canvasFormat }]
             }
         });
     }
 
+    // Update Bloom parameters
+    updateParams(params: {
+        threshold: number;
+        intensity: number;
+        strength: number;
+        kernelSize: number;
+    }) {
+        renderer.device.queue.writeBuffer(this.thresholdBuffer, 0, new Float32Array([params.threshold]));
+        renderer.device.queue.writeBuffer(this.intensityBuffer, 0, new Float32Array([params.intensity]));
+        renderer.device.queue.writeBuffer(this.strengthBuffer, 0, new Float32Array([params.strength]));
+        renderer.device.queue.writeBuffer(this.kernelSizeBuffer, 0, new Uint32Array([params.kernelSize]));
+    }
+
     doBloom(encoder: GPUCommandEncoder, outputView: GPUTextureView) {
+        // --- Pass 1: Extract Bright ---
         const brightnessExtractPass = encoder.beginRenderPass({
             label: "brightness extract pass",
             colorAttachments: [{
-                view: this.brightnessExtractTextureView,
                 // view: outputView,
+                view: this.brightnessExtractTextureView,
                 clearValue: [0, 0, 0, 0],
                 loadOp: "clear",
                 storeOp: "store"
@@ -286,66 +273,54 @@ export class Bloom {
         
         brightnessExtractPass.setPipeline(this.brightnessExtractPipeline);
         brightnessExtractPass.setBindGroup(0, this.brightnessExtractGroup);
-        brightnessExtractPass.draw(4);
+        brightnessExtractPass.draw(3);
         brightnessExtractPass.end();
 
-        const horizontalBlurPass = encoder.beginComputePass({
-            label: "horizontal blur compute pass"
-        });
-        
-        horizontalBlurPass.setPipeline(this.blurComputePipeline);
-        horizontalBlurPass.setBindGroup(0, this.blurHorizontalComputeGroup);
-        
-        const workgroupCountX = Math.ceil(renderer.canvas.width / shaders.constants.gaussianBlurWorkgroupSize);
-        const workgroupCountY = Math.ceil(renderer.canvas.height / shaders.constants.gaussianBlurWorkgroupSize);
-        horizontalBlurPass.dispatchWorkgroups(workgroupCountX, workgroupCountY);
-        horizontalBlurPass.end();
-
-        const verticalBlurPass = encoder.beginComputePass({
-            label: "vertical blur compute pass"
-        });
-        
-        verticalBlurPass.setPipeline(this.blurComputePipeline);
-        verticalBlurPass.setBindGroup(0, this.blurVerticalComputeGroup);
-        verticalBlurPass.dispatchWorkgroups(workgroupCountX, workgroupCountY);
-        verticalBlurPass.end();
-        
-        // 为当前帧创建混合绑定组
-        // 注意：我们使用的渲染纹理视图应该包含原始场景
-        // 而verticalBlurTextureView包含模糊后的高亮区域
-        const blendGroup = renderer.device.createBindGroup({
-            label: "blend bind group",
-            layout: this.blendGroupLayout,
-            entries: [
-                {
-                    binding: 0,
-                    resource: this.verticalBlurTextureView
-                },
-                {
-                    binding: 1,
-                    resource: this.renderTextureView
-                },
-                {
-                    binding: 2,
-                    resource: { buffer: renderer.bloomStrengthBuffer }
-                }
-            ]
-        });
-        
-        // 最终混合通道
-        const finalBlendPass = encoder.beginRenderPass({
-            label: "final blend pass",
+        // --- Pass 2: Gaussian Blur ---
+        renderer.device.queue.writeBuffer(this.horizontalBuffer, 0, new Uint32Array([1])); // Set horizontal = true
+        const horizontalBlurPass = encoder.beginRenderPass({
+            label: "horizontal blur pass",
             colorAttachments: [{
-                view: outputView,
+                view: this.blurTextureAView,
                 clearValue: [0, 0, 0, 0],
-                loadOp: "load", // 保留之前渲染的内容
+                loadOp: "clear",
                 storeOp: "store"
             }]
         });
-        
-        finalBlendPass.setPipeline(this.blendPipeline);
-        finalBlendPass.setBindGroup(0, blendGroup);
-        finalBlendPass.draw(4); // 绘制全屏四边形
-        finalBlendPass.end();
+        horizontalBlurPass.setPipeline(this.blurPipeline);
+        horizontalBlurPass.setBindGroup(0, this.blurGroupA);
+        horizontalBlurPass.draw(3);
+        horizontalBlurPass.end();
+
+        renderer.device.queue.writeBuffer(this.horizontalBuffer, 0, new Uint32Array([0])); // Set horizontal = false
+        const verticalBlurPass = encoder.beginRenderPass({
+            label: "vertical blur pass",
+            colorAttachments: [{
+                // view: outputView,
+                view: this.blurTextureBView,
+                clearValue: [0, 0, 0, 0],
+                loadOp: "clear",
+                storeOp: "store"
+            }]
+        });
+        verticalBlurPass.setPipeline(this.blurPipeline);
+        verticalBlurPass.setBindGroup(0, this.blurGroupB);
+        verticalBlurPass.draw(3);
+        verticalBlurPass.end();
+
+        // --- Pass 3: Blend ---
+        const blendPass = encoder.beginRenderPass({
+            label: "blend pass",
+            colorAttachments: [{
+                view: outputView,
+                clearValue: [0, 0, 0, 0],
+                loadOp: "clear",
+                storeOp: "store"
+            }]
+        });
+        blendPass.setPipeline(this.blendPipeline);
+        blendPass.setBindGroup(0, this.blendGroup);
+        blendPass.draw(3);
+        blendPass.end();
     }
 }

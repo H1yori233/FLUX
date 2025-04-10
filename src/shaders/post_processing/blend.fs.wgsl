@@ -1,17 +1,18 @@
-struct FragmentInput {
-    @builtin(position) fragCoord: vec4f,
+struct VertexOutput {
+    @builtin(position) position: vec4f,
     @location(0) uv: vec2f
 }
 
-@group(0) @binding(0) var originalTexture: texture_2d<f32>;
-@group(0) @binding(1) var blurredTexture: texture_2d<f32>;
-@group(0) @binding(2) var<uniform> bloomStrength: f32;
+@group(${bindGroup_post_process}) @binding(0) var inputTexture: texture_2d<f32>;
+@group(${bindGroup_post_process}) @binding(1) var blurTexture: texture_2d<f32>;
+@group(${bindGroup_post_process}) @binding(2) var inputSampler: sampler;
+@group(${bindGroup_post_process}) @binding(3) var<uniform> strength: f32;
 
 @fragment
-fn main(in: FragmentInput) -> @location(0) vec4f {
-    let originalColor = textureLoad(originalTexture, vec2i(in.fragCoord.xy), 0);
-    let blurredColor = textureLoad(blurredTexture, vec2i(in.fragCoord.xy), 0);
-    
-    // 混合原始图像和模糊后的亮部
-    return originalColor + blurredColor * bloomStrength;
-} 
+fn main(in: VertexOutput) -> @location(0) vec4f {
+    var result = textureSample(inputTexture, inputSampler, in.uv);
+    let blur =  textureSample(blurTexture, inputSampler, in.uv);
+    result += blur * strength;
+    // result += blur * 10;
+    return result;
+}

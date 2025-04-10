@@ -10,6 +10,7 @@ export class Toon {
     toonGroup: GPUBindGroup;
     
     intensityBuffer: GPUBuffer;
+    thresholdBuffer: GPUBuffer;
 
     constructor() {
         this.renderTexture = renderer.device.createTexture({
@@ -19,14 +20,18 @@ export class Toon {
         });
         this.renderTextureView = this.renderTexture.createView();
         
-        // Create intensity uniform buffer
+        // Create uniform buffer
         this.intensityBuffer = renderer.device.createBuffer({
             size: 4,
             usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
         });
-        // Set default intensity to 5 (matches the shader's quantization level)
         renderer.device.queue.writeBuffer(this.intensityBuffer, 0, new Float32Array([5.0]));
-        
+        this.thresholdBuffer = renderer.device.createBuffer({
+            size: 4,
+            usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
+        });
+        renderer.device.queue.writeBuffer(this.thresholdBuffer, 0, new Float32Array([0.08]));
+
         // Create toon bind group layout
         this.toonGroupLayout = renderer.device.createBindGroupLayout({
             label: "toon bind group layout",
@@ -38,6 +43,11 @@ export class Toon {
                 },
                 { // Intensity
                     binding: 1,
+                    visibility: GPUShaderStage.FRAGMENT,
+                    buffer: { type: "uniform" }
+                },
+                { // Threshold
+                    binding: 2,
                     visibility: GPUShaderStage.FRAGMENT,
                     buffer: { type: "uniform" }
                 }
@@ -56,6 +66,11 @@ export class Toon {
                 {
                     binding: 1,
                     resource: { buffer: this.intensityBuffer }
+                }
+                ,
+                {
+                    binding: 2,
+                    resource: { buffer: this.thresholdBuffer }
                 }
             ]
         });
@@ -89,8 +104,9 @@ export class Toon {
     }
 
     // Update the toon intensity parameter
-    updateIntensity(intensity: number) {
+    updateIntensity(intensity: number, threshold: number) {
         renderer.device.queue.writeBuffer(this.intensityBuffer, 0, new Float32Array([intensity]));
+        renderer.device.queue.writeBuffer(this.thresholdBuffer, 0, new Float32Array([threshold]));
     }
 
     // Apply toon effect

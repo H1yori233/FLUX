@@ -49,11 +49,15 @@ const bloomParams = {
 
 const toonParams = {
     enabled: false,
-    intensity: 5.0
+    intensity: 5.0,
+    threshold: 0.08,
 };
 
+let bloomEnabledController: dat.GUIController;
+let toonEnabledController: dat.GUIController;
+
 function updateBloomParams() {
-    rendererModule.updateBloomParams({
+    bloom.updateParams({
         threshold: bloomParams.threshold,
         intensity: bloomParams.intensity,
         strength: bloomParams.strength,
@@ -63,7 +67,17 @@ function updateBloomParams() {
 
 function setRenderer(mode: string) {
     renderer?.stop();
-    
+
+    // Reset Bloom and Toon states before creating a new renderer
+    if (bloomEnabledController) {
+        bloomParams.enabled = false;
+        bloomEnabledController.setValue(false);
+    }
+    if (toonEnabledController) {
+        toonParams.enabled = false;
+        toonEnabledController.setValue(false);
+    }
+
     switch (mode) {
         case renderModes.naive:
             renderer = new NaiveRenderer(stage);
@@ -87,7 +101,7 @@ renderModeController.onChange(setRenderer);
 
 // Add Bloom to GUI
 const bloomFolder = gui.addFolder('Bloom Effect');
-bloomFolder.add(bloomParams, 'enabled').name('Enable').onChange(() => {
+bloomEnabledController = bloomFolder.add(bloomParams, 'enabled').name('Enable').onChange(() => {
     renderer?.toggleBloom();
 });
 bloomFolder.add(bloomParams, 'threshold').min(0.0).max(1.0).step(0.01).name('Threshold').onChange(() => {
@@ -96,7 +110,7 @@ bloomFolder.add(bloomParams, 'threshold').min(0.0).max(1.0).step(0.01).name('Thr
 bloomFolder.add(bloomParams, 'intensity').min(0.0).max(5.0).step(0.1).name('Intensity').onChange(() => {
     updateBloomParams();
 });
-bloomFolder.add(bloomParams, 'strength').min(0.0).max(2.0).step(0.05).name('Strength').onChange(() => {
+bloomFolder.add(bloomParams, 'strength').min(0.0).max(20.0).step(0.05).name('Strength').onChange(() => {
     updateBloomParams();
 });
 bloomFolder.add(bloomParams, 'kernelSize').min(3).max(15).step(2).name('Kernel Size').onChange(() => {
@@ -105,11 +119,14 @@ bloomFolder.add(bloomParams, 'kernelSize').min(3).max(15).step(2).name('Kernel S
 
 // Add Toon to GUI
 const toonFolder = gui.addFolder('Toon Effect');
-toonFolder.add(toonParams, 'enabled').name('Enable').onChange(() => {
+toonEnabledController = toonFolder.add(toonParams, 'enabled').name('Enable').onChange(() => {
     renderer?.toggleToon();
 });
 toonFolder.add(toonParams, 'intensity').min(2.0).max(20.0).step(1.0).name('Quantization').onChange(() => {
-    toon.updateIntensity(toonParams.intensity);
+    toon.updateIntensity(toonParams.intensity, toonParams.threshold);
+});
+toonFolder.add(toonParams, 'threshold').min(0.05).max(0.2).step(0.01).name('Threshold').onChange(() => {
+    toon.updateIntensity(toonParams.intensity, toonParams.threshold);
 });
 
 setRenderer(renderModeController.getValue());
