@@ -27,13 +27,14 @@ export const constants = {
     bindGroup_scene: 0,
     bindGroup_model: 1,
     bindGroup_material: 2,
+    bindGroup_gbuffer: 1,
 
     moveLightsWorkgroupSize: 128,
 
     lightRadius: 2,
 
     // TODO-2: add constants for light clustering here
-    maxNumLights: 64,
+    maxNumLights: 128,
 
     numClustersX: 16,
     numClustersY: 10,
