@@ -29,21 +29,15 @@ export class Lights {
     moveLightsComputePipeline: GPUComputePipeline;
 
     // TODO-2: add layouts, pipelines, textures, etc. needed for light clustering here
-    clustersArray = new Float32Array(shaders.constants.numClustersX * 
-                                     shaders.constants.numClustersY * 
-                                     shaders.constants.numClustersZ * 
-                                     (shaders.constants.maxNumLights + 1));
     clusterSetStorageBuffer: GPUBuffer;
-
     clusteringComputeBindGroupLayout: GPUBindGroupLayout;
     clusteringComputeBindGroup: GPUBindGroup;
     clusteringComputePipeline: GPUComputePipeline;
 
     // Light sorting
-    sortParamsUniformBuffer: GPUBuffer;
     bitonicSortComputeBindGroupLayout: GPUBindGroupLayout;
     bitonicSortComputeBindGroup: GPUBindGroup;
-    bitonicSortComputePipeline: GPUComputePipeline;
+    bitonicSortComputePipelines: GPUComputePipeline[];
 
     // Z-binning
     zBinsArray: Float32Array;
@@ -118,12 +112,6 @@ export class Lights {
         // TODO-2: initialize layouts, pipelines, textures, etc. needed for light clustering here
     
         // Light sorting
-        this.sortParamsUniformBuffer = device.createBuffer({
-            label: "sort params uniform",
-            size: 16,
-            usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
-        });
-        
         this.bitonicSortComputeBindGroupLayout = device.createBindGroupLayout({
             label: "bitonic sort compute bind group layout",
             entries: [
@@ -131,11 +119,6 @@ export class Lights {
                     binding: 0,
                     visibility: GPUShaderStage.COMPUTE,
                     buffer: { type: "storage" }
-                },
-                { // sortParams
-                    binding: 1,
-                    visibility: GPUShaderStage.COMPUTE,
-                    buffer: { type: "uniform" }
                 }
             ]
         });
@@ -147,28 +130,12 @@ export class Lights {
                 {
                     binding: 0,
                     resource: { buffer: this.lightSetStorageBuffer }
-                },
-                {
-                    binding: 1,
-                    resource: { buffer: this.sortParamsUniformBuffer }
                 }
             ]
         });
 
-        this.bitonicSortComputePipeline = device.createComputePipeline({
-            label: "bitonic sort compute pipeline",
-            layout: device.createPipelineLayout({
-                label: "bitonic sort compute pipeline layout",
-                bindGroupLayouts: [ this.bitonicSortComputeBindGroupLayout ]
-            }),
-            compute: {
-                module: device.createShaderModule({
-                    label: "bitonic sort lights compute shader",
-                    code: shaders.bitonicSortLightsComputeSrc
-                }),
-                entryPoint: "main"
-            }
-        });
+        this.bitonicSortComputePipelines = [];
+        this.initBitonicSortPipelines();
 
         // Z-binning
         this.zBinsArray = new Float32Array(shaders.constants.numZBins * 
@@ -238,7 +205,10 @@ export class Lights {
         // Light clustering
         this.clusterSetStorageBuffer = device.createBuffer({
             label: "cluster set",
-            size: this.clustersArray.byteLength,
+            size: (shaders.constants.numClustersX * 
+                   shaders.constants.numClustersY * 
+                   shaders.constants.numClustersZ * 
+                  (shaders.constants.maxNumLights + 1)) * 4,
             usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST
         });
         
@@ -307,6 +277,40 @@ export class Lights {
         });
     }
 
+    private initBitonicSortPipelines() {
+        const powerOfTwo = 1 << Math.ceil(Math.log2(this.numLights));
+        const maxStep = Math.log2(powerOfTwo);
+
+        for (let step = 1; step <= maxStep; ++step) {
+            for (let stage = 0; stage < step; ++stage) {
+                const module = device.createShaderModule({
+                    label: `bitonic cs step=${step} stage=${stage}`,
+                    code: shaders.bitonicSortLightsComputeSrc
+                });
+
+                const pipeline = device.createComputePipeline({
+                    label: `bitonic pipeline step=${step} stage=${stage}`,
+                    layout: device.createPipelineLayout({
+                        label: "bitonic pipeline layout",
+                        bindGroupLayouts: [
+                            this.bitonicSortComputeBindGroupLayout,
+                        ],
+                    }),
+                    compute: {
+                        module,
+                        entryPoint: "main",
+                        constants: {
+                            0: step,
+                            1: stage,
+                        },
+                    }
+                });
+
+                this.bitonicSortComputePipelines.push(pipeline);
+            }
+        }
+    }
+
     private populateLightsBuffer() {
         for (let lightIdx = 0; lightIdx < Lights.maxNumLights; ++lightIdx) {
             // light pos is set by compute shader so no need to set it here
@@ -321,39 +325,27 @@ export class Lights {
         device.queue.writeBuffer(this.lightSetStorageBuffer, 0, new Uint32Array([this.numLights]));
     }
 
-    doLightSorting(encoder: GPUCommandEncoder) {
-        const numLights = this.numLights;
-        let powerOfTwo = 1;
-        while (powerOfTwo < numLights) {
-            powerOfTwo *= 2;
+    private doLightSorting(encoder: GPUCommandEncoder) {
+        const workgroupCount = Math.ceil(this.numLights / 2 / 
+                                         shaders.constants.moveLightsWorkgroupSize);
+
+        const computePass = encoder.beginComputePass({
+            label: "bitonic sort pass",
+        });
+        computePass.setBindGroup(0, this.bitonicSortComputeBindGroup);
+
+        for (const pipeline of this.bitonicSortComputePipelines) {
+            computePass.setPipeline(pipeline);
+            computePass.dispatchWorkgroups(workgroupCount);
         }
 
-        for (let step = 1; step <= Math.log2(powerOfTwo); step++) {
-            for (let stage = 0; stage < step; stage++) {
-                // ping pong
-                const direction = (step % 2 === 1) ? 1 : 0;
-                
-                // update sort params
-                const sortParams = new Uint32Array([step, stage, numLights, direction]);
-                device.queue.writeBuffer(this.sortParamsUniformBuffer, 0, sortParams);
-                
-                // execute sort pass
-                const computePass = encoder.beginComputePass({
-                    label: `bitonic sort step ${step} stage ${stage}`
-                });
-                computePass.setPipeline(this.bitonicSortComputePipeline);
-                computePass.setBindGroup(0, this.bitonicSortComputeBindGroup);
-
-                const workgroupCount = Math.ceil(numLights / 2 / shaders.constants.moveLightsWorkgroupSize);
-                computePass.dispatchWorkgroups(Math.max(1, workgroupCount));
-                computePass.end();
-            }
-        }
+        computePass.end();
     }
 
-    doZBinning(encoder: GPUCommandEncoder) {
+    private doZBinning(encoder: GPUCommandEncoder) {
         // clear z-bin set
-        device.queue.writeBuffer(this.zBinSetStorageBuffer, 0, new Uint32Array(this.zBinsArray.length).fill(0));
+        device.queue.writeBuffer(this.zBinSetStorageBuffer, 0, 
+            new Uint32Array(this.zBinsArray.length).fill(0));
 
         const computePass = encoder.beginComputePass({
             label: "z-binning pass"

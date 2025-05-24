@@ -16,7 +16,8 @@ struct CameraUniforms {
     // TODO-1.3: add an entry for the view proj mat (of type mat4x4f)
     viewProjMat: mat4x4f,
     viewMat: mat4x4f,
-    inverseProjMat: mat4x4f,
+    invProjMat: mat4x4f,
+    invViewProjMat: mat4x4f,
 
     // camera info
     screenDimensions: vec2f,

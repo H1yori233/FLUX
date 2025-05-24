@@ -5,14 +5,37 @@
 @group(${bindGroup_scene}) @binding(1) var<storage, read> lightSet: LightSet;
 @group(${bindGroup_scene}) @binding(2) var<storage, read> clusterSet: ClusterSet;
 
-@group(${bindGroup_gbuffer}) @binding(0) var positionTexture: texture_2d<f32>;
-@group(${bindGroup_gbuffer}) @binding(1) var normalTexture: texture_2d<f32>;
-@group(${bindGroup_gbuffer}) @binding(2) var albedoTexture: texture_2d<f32>;
-@group(${bindGroup_gbuffer}) @binding(3) var textureSampler: sampler;
+@group(${bindGroup_gbuffer}) @binding(0) var packTexture: texture_2d<u32>;
 
 struct FragmentInput {
-    @builtin(position) fragCoord: vec4f,
+    @builtin(position) fragPos: vec4f,
     @location(0) uv: vec2f
+}
+
+fn decodeNormal(encoded: vec2f) -> vec3f {
+    // |X'| + |Y'| + |Z'| = 1 -> p.z = 1 - |p.x| - |p.y|
+    let n = vec3f(encoded.x, encoded.y, 1.0 - abs(encoded.x) - abs(encoded.y));
+    let t = max(-n.z, 0.0);
+
+    var result = n;
+    if (n.x >= 0.0) {
+        result.x -= t;
+    } else {
+        result.x += t;
+    }
+    
+    if (n.y >= 0.0) {
+        result.y -= t;
+    } else {
+        result.y += t;
+    }
+    return normalize(result);
+}
+
+fn reconstructWorldPosition(uv: vec2f, depth: f32) -> vec3f {
+    let clip = vec4f(vec2f(uv.x, 1.0 - uv.y) * 2.0 - 1.0, depth, 1.0);
+    let worldSpacePos = cameraUniforms.invViewProjMat * clip;
+    return worldSpacePos.xyz / worldSpacePos.w;
 }
 
 fn getClusterIndex(pos: vec3f, fragPos: vec4f) -> u32 {
@@ -35,15 +58,16 @@ fn getClusterIndex(pos: vec3f, fragPos: vec4f) -> u32 {
 @fragment
 fn main(in: FragmentInput) -> @location(0) vec4f {
     let texCoord = in.uv;
-    let position = textureSample(positionTexture, textureSampler, texCoord).xyz;
-    let normal = normalize(textureSample(normalTexture, textureSampler, texCoord).xyz);
-    let albedo = textureSample(albedoTexture, textureSampler, texCoord);
-    
-    if (albedo.a < 0.5) {
-        discard;
-    }
+    let pack = textureLoad(packTexture, vec2i(in.fragPos.xy), 0);
 
-    let index = (getClusterIndex(position, in.fragCoord));
+    let normal = decodeNormal(unpack2x16snorm(pack.x));
+    let DR = unpack2x16snorm(pack.y);
+    let GB = unpack2x16snorm(pack.z);
+    let depth = DR.x;
+    let albedo = vec3f(DR.y, GB.x, GB.y);
+    let position = reconstructWorldPosition(texCoord, depth);
+    
+    let index = (getClusterIndex(position, in.fragPos));
     var totalLightContrib = vec3f(0, 0, 0);
     let cluster = clusterSet.clusters[index];
     for (var lightIdx = 0u; lightIdx < cluster.numLights; lightIdx++) {

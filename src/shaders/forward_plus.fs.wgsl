@@ -47,16 +47,6 @@ fn getClusterIndex(pos: vec3f, fragPos: vec4f) -> u32 {
            clusterZ * ${numClustersX} * ${numClustersY};
 }
 
-fn depthToColor(depth: f32) -> vec3f {
-    let depthIndex = floor(depth / 2.0);
-    
-    let r = fract(sin(depthIndex * 12.9898) * 43758.5453);
-    let g = fract(sin(depthIndex * 78.233) * 43758.5453);
-    let b = fract(sin(depthIndex * 37.719) * 43758.5453);
-    
-    return vec3f(r, g, b);
-}
-
 @fragment
 fn main(in: FragmentInput) -> @location(0) vec4f
 {
@@ -73,7 +63,7 @@ fn main(in: FragmentInput) -> @location(0) vec4f
         totalLightContrib += calculateLightContrib(light, in.pos, normalize(in.nor));
     }
 
-    var finalColor = diffuseColor.rgb * totalLightContrib;
+    let finalColor = diffuseColor.rgb * totalLightContrib;
 
     return vec4(finalColor, 1);
 }

@@ -37,7 +37,7 @@ fn screen2View(screen: vec4f) -> vec4f {
     //Convert to clipSpace
     let clip = vec4(vec2(texCoord.x, 1.0 - texCoord.y) * 2.0 - 1.0, screen.z, screen.w);
     //View space transform
-    var view = cameraUniforms.inverseProjMat * clip;
+    var view = cameraUniforms.invProjMat * clip;
     // Perspective projection
     view = view / view.w;
     return view;

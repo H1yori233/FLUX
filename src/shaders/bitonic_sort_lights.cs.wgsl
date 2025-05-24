@@ -1,6 +1,7 @@
+@id(0) override kStep : u32;
+@id(1) override kStage : u32;
+
 @group(${bindGroup_scene}) @binding(0) var<storage, read_write> lightSet: LightSet;
-@group(${bindGroup_scene}) @binding(1) var<uniform> sortParams: vec4u; 
-                                       // [step, stage, numLights, direction]
 
 @compute @workgroup_size(${moveLightsWorkgroupSize})
 fn main(@builtin(global_invocation_id) global_id: vec3u) {
@@ -12,10 +13,9 @@ fn main(@builtin(global_invocation_id) global_id: vec3u) {
         return;
     }
 
-    let step = sortParams.x;
-    let stage = sortParams.y;
-    let numLights = sortParams.z;
-    let direction = sortParams.w;
+    let step = kStep;
+    let stage = kStage;
+    let direction = select(0u, 1u, (step & 1u) == 1u);
     
     // Compute the distance between elements to compare in this stage:
     //   pairDistance = 2^(step - stage - 1)
@@ -26,7 +26,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3u) {
     let right = left + pairDistance;
     
     // If right index is out of bounds, skip this thread
-    if (right >= numLights) {
+    if (right >= lightSet.numLights) {
         return;
     }
     
