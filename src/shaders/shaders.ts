@@ -15,6 +15,8 @@ import clusteredDeferredFullscreenFragRaw from './clustered_deferred_fullscreen.
 
 import moveLightsComputeRaw from './move_lights.cs.wgsl?raw';
 import clusteringComputeRaw from './clustering.cs.wgsl?raw';
+import bitonicSortLightsComputeRaw from './bitonic_sort_lights.cs.wgsl?raw';
+import zBinningComputeRaw from './z_binning.cs.wgsl?raw';
 
 // CONSTANTS (for use in shaders)
 // =================================
@@ -34,11 +36,16 @@ export const constants = {
     lightRadius: 2,
 
     // TODO-2: add constants for light clustering here
-    maxNumLights: 128,
+    maxNumLights: 512,
 
     numClustersX: 16,
     numClustersY: 10,
     numClustersZ: 24,
+    numZBins: 32,
+    
+    workgroupSizeX: 4,
+    workgroupSizeY: 4,
+    workgroupSizeZ: 4,
 };
 
 // =================================
@@ -64,3 +71,5 @@ export const clusteredDeferredFullscreenFragSrc: string = processShaderRaw(clust
 
 export const moveLightsComputeSrc: string = processShaderRaw(moveLightsComputeRaw);
 export const clusteringComputeSrc: string = processShaderRaw(clusteringComputeRaw);
+export const bitonicSortLightsComputeSrc: string = processShaderRaw(bitonicSortLightsComputeRaw);
+export const zBinningComputeSrc: string = processShaderRaw(zBinningComputeRaw);
