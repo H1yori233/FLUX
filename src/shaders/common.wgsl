@@ -35,12 +35,7 @@ struct ClusterSet {
 }
 
 struct ZBin {
-    numLights: u32,
-    lightIndices: array<u32, ${maxNumLights}>
-}
-
-struct ZBinSet {
-    bins: array<ZBin, ${numZBins}>
+    bins: array<u32, ${numClustersZ}>
 }
 
 // CHECKITOUT: this special attenuation function ensures lights don't affect geometry outside the maximum light radius
@@ -48,10 +43,19 @@ fn rangeAttenuation(distance: f32) -> f32 {
     return clamp(1.f - pow(distance / ${lightRadius}, 4.f), 0.f, 1.f) / (distance * distance);
 }
 
-fn calculateLightContrib(light: Light, posWorld: vec3f, nor: vec3f) -> vec3f {
-    let vecToLight = light.pos - posWorld;
+fn calculateLightContrib(light: Light, posView: vec3f, nor: vec3f) -> vec3f {
+    let vecToLight = light.pos - posView;
     let distToLight = length(vecToLight);
 
     let lambert = max(dot(nor, normalize(vecToLight)), 0.f);
     return light.color * lambert * rangeAttenuation(distToLight);
+}
+
+fn getZIndex(depth: f32) -> u32 {
+    let zNear = f32(${nearPlane});
+    let zFar  = f32(${farPlane});
+    let sliceF = log(depth / zNear) / log(zFar / zNear) *
+                 f32(${numClustersZ});
+    let clusterZ = clamp(u32(sliceF), 0u, ${numClustersZ} - 1u);
+    return clusterZ;
 }

@@ -27,7 +27,8 @@ fn main(in: VertexInput) -> VertexOutput
 
     var out: VertexOutput;
     out.fragPos = cameraUniforms.viewProjMat * modelPos; // TODO-1.3: replace ??? with the view proj mat from your CameraUniforms uniform variable
-    out.pos = modelPos.xyz / modelPos.w;
+    // out.pos = modelPos.xyz / modelPos.w;
+    out.pos = (cameraUniforms.viewMat * modelPos).xyz;
     out.nor = in.nor;
     out.uv = in.uv;
     return out;

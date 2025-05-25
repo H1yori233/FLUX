@@ -13,7 +13,7 @@ function hueToRgb(h: number) {
 export class Lights {
     private camera: Camera;
 
-    numLights = 500;
+    numLights = 50;
     static readonly maxNumLights = 5000;
     static readonly numFloatsPerLight = 8; // vec3f is aligned at 16 byte boundaries
 
@@ -66,13 +66,18 @@ export class Lights {
         this.moveLightsComputeBindGroupLayout = device.createBindGroupLayout({
             label: "move lights compute bind group layout",
             entries: [
-                { // lightSet
+                { // camera uniforms
                     binding: 0,
+                    visibility: GPUShaderStage.COMPUTE,
+                    buffer: { type: "uniform" }
+                },
+                { // lightSet
+                    binding: 1,
                     visibility: GPUShaderStage.COMPUTE,
                     buffer: { type: "storage" }
                 },
                 { // time
-                    binding: 1,
+                    binding: 2,
                     visibility: GPUShaderStage.COMPUTE,
                     buffer: { type: "uniform" }
                 }
@@ -85,10 +90,14 @@ export class Lights {
             entries: [
                 {
                     binding: 0,
-                    resource: { buffer: this.lightSetStorageBuffer }
+                    resource: { buffer: camera.uniformsBuffer }
                 },
                 {
                     binding: 1,
+                    resource: { buffer: this.lightSetStorageBuffer }
+                },
+                {
+                    binding: 2,
                     resource: { buffer: this.timeUniformBuffer }
                 }
             ]
@@ -138,30 +147,24 @@ export class Lights {
         this.initBitonicSortPipelines();
 
         // Z-binning
-        this.zBinsArray = new Float32Array(shaders.constants.numZBins * 
-            (shaders.constants.maxNumLights + 1));
+        this.zBinsArray = new Float32Array(shaders.constants.numClustersZ);
 
         this.zBinSetStorageBuffer = device.createBuffer({
             label: "z-bin set",
-            size: this.zBinsArray.byteLength,
+            size: shaders.constants.numClustersZ * 4,
             usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST
         });
 
         this.zBinningComputeBindGroupLayout = device.createBindGroupLayout({
             label: "z binning compute bind group layout",
             entries: [
-                { // camera uniforms
-                    binding: 0,
-                    visibility: GPUShaderStage.COMPUTE,
-                    buffer: { type: "uniform" }
-                },
                 { // lightSet
-                    binding: 1,
+                    binding: 0,
                     visibility: GPUShaderStage.COMPUTE,
                     buffer: { type: "read-only-storage" }
                 },
                 { // zBinSet
-                    binding: 2,
+                    binding: 1,
                     visibility: GPUShaderStage.COMPUTE,
                     buffer: { type: "storage" }
                 }
@@ -174,14 +177,10 @@ export class Lights {
             entries: [
                 {
                     binding: 0,
-                    resource: { buffer: camera.uniformsBuffer }
-                },
-                {
-                    binding: 1,
                     resource: { buffer: this.lightSetStorageBuffer }
                 },
                 {
-                    binding: 2,
+                    binding: 1,
                     resource: { buffer: this.zBinSetStorageBuffer }
                 }
             ]
@@ -345,7 +344,7 @@ export class Lights {
     private doZBinning(encoder: GPUCommandEncoder) {
         // clear z-bin set
         device.queue.writeBuffer(this.zBinSetStorageBuffer, 0, 
-            new Uint32Array(this.zBinsArray.length).fill(0));
+            new Uint32Array(shaders.constants.numClustersZ).fill(0));
 
         const computePass = encoder.beginComputePass({
             label: "z-binning pass"
@@ -355,7 +354,7 @@ export class Lights {
 
         computePass.setBindGroup(0, this.zBinningComputeBindGroup);
         
-        computePass.dispatchWorkgroups(shaders.constants.numZBins);
+        computePass.dispatchWorkgroups(shaders.constants.numClustersZ);
 
         computePass.end();
     }

@@ -32,10 +32,16 @@ fn decodeNormal(encoded: vec2f) -> vec3f {
     return normalize(result);
 }
 
-fn reconstructWorldPosition(uv: vec2f, depth: f32) -> vec3f {
+// fn reconstructWorldPosition(uv: vec2f, depth: f32) -> vec3f {
+//     let clip = vec4f(vec2f(uv.x, 1.0 - uv.y) * 2.0 - 1.0, depth, 1.0);
+//     let worldSpacePos = cameraUniforms.invViewProjMat * clip;
+//     return worldSpacePos.xyz / worldSpacePos.w;
+// }
+
+fn reconstructViewPosition(uv: vec2f, depth: f32) -> vec3f {
     let clip = vec4f(vec2f(uv.x, 1.0 - uv.y) * 2.0 - 1.0, depth, 1.0);
-    let worldSpacePos = cameraUniforms.invViewProjMat * clip;
-    return worldSpacePos.xyz / worldSpacePos.w;
+    let viewSpacePos = cameraUniforms.invProjMat * clip;
+    return viewSpacePos.xyz / viewSpacePos.w;
 }
 
 fn getClusterIndex(pos: vec3f, fragPos: vec4f) -> u32 {
@@ -44,12 +50,9 @@ fn getClusterIndex(pos: vec3f, fragPos: vec4f) -> u32 {
     let clusterX = clamp(u32(floor(fragPos.x / tileSizePx.x)), 0u, ${numClustersX} - 1u);
     let clusterY = clamp(u32(floor(fragPos.y / tileSizePx.y)), 0u, ${numClustersY} - 1u);
 
-    let viewPos = cameraUniforms.viewMat * vec4(pos, 1.0);
-    let zNear = cameraUniforms.zNear;
-    let zFar  = cameraUniforms.zFar;
-    let sliceF = log(-viewPos.z / zNear) / log(zFar / zNear) *
-                 f32(${numClustersZ});
-    let clusterZ = clamp(u32(sliceF), 0u, ${numClustersZ} - 1u);
+    // let viewPos = cameraUniforms.viewMat * vec4(pos, 1.0);
+    let viewPos = pos;
+    let clusterZ = getZIndex(-viewPos.z);
     return clusterX + 
            clusterY * ${numClustersX} + 
            clusterZ * ${numClustersX} * ${numClustersY};
@@ -65,7 +68,8 @@ fn main(in: FragmentInput) -> @location(0) vec4f {
     let GB = unpack2x16snorm(pack.z);
     let depth = DR.x;
     let albedo = vec3f(DR.y, GB.x, GB.y);
-    let position = reconstructWorldPosition(texCoord, depth);
+    // let position = reconstructWorldPosition(texCoord, depth);
+    let position = reconstructViewPosition(texCoord, depth);
     
     let index = (getClusterIndex(position, in.fragPos));
     var totalLightContrib = vec3f(0, 0, 0);
@@ -75,7 +79,9 @@ fn main(in: FragmentInput) -> @location(0) vec4f {
         totalLightContrib += calculateLightContrib(light, position, normal);
     }
 
-    let finalColor = albedo.rgb * totalLightContrib;
+    // let finalColor = albedo.rgb * totalLightContrib;
+    let temp = f32(cluster.numLights) / ${maxNumLights};
+    let finalColor = vec3f(temp, temp, temp);
 
     return vec4(finalColor, 1.0);
 }

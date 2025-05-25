@@ -30,8 +30,8 @@ fn main(@builtin(global_invocation_id) global_id: vec3u) {
         return;
     }
     
-    let leftZ = lightSet.lights[left].pos.z;
-    let rightZ = lightSet.lights[right].pos.z;
+    let leftZ = -lightSet.lights[left].pos.z;
+    let rightZ = -lightSet.lights[right].pos.z;
 
     let swap = (leftZ > rightZ) == (direction == 1u);
     

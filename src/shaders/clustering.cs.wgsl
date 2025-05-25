@@ -7,7 +7,7 @@
 @group(${bindGroup_scene}) @binding(0) var<uniform> cameraUniforms: CameraUniforms;
 @group(${bindGroup_scene}) @binding(1) var<storage, read> lightSet: LightSet;
 @group(${bindGroup_scene}) @binding(2) var<storage, read_write> clusterSet: ClusterSet;
-@group(${bindGroup_scene}) @binding(3) var<storage, read> zBinSet: ZBinSet;
+@group(${bindGroup_scene}) @binding(3) var<storage, read> zBin: ZBin;
 
 // ------------------------------------
 // Calculating cluster bounds:
@@ -84,17 +84,27 @@ fn sqDistPointAABB(point: vec3f, min: vec3f, max: vec3f) -> f32 {
 
 fn testSphereAABB(light: u32, min: vec3f, max: vec3f) -> bool {
     let radius = ${lightRadius};
-    let pos = vec4(lightSet.lights[light].pos, 1.0);
-    let center  = (cameraUniforms.viewMat * pos).xyz;
+    // let pos = vec4(lightSet.lights[light].pos, 1.0);
+    // let center  = (cameraUniforms.viewMat * pos).xyz;
+    let center = lightSet.lights[light].pos;
     let squaredDistance = sqDistPointAABB(center, min, max);
 
     return squaredDistance <= f32(radius * radius);
 }
 
-fn getZBinIndex(viewZ: f32, zNear: f32, zFar: f32) -> u32 {
-    let normalizedZ = clamp((-viewZ - zNear) / (zFar - zNear), 0.0, 1.0);
-    let binIndex = u32(normalizedZ * f32(${numZBins}));
-    return clamp(binIndex, 0u, ${numZBins} - 1u);
+fn unpackBounds(bounds: u32) -> vec2u {
+    let startIdx = bounds >> 16u;
+    let endIdx = bounds & 0xFFFFu;
+    return vec2u(startIdx, endIdx);
+}
+
+fn getZBinIndex(viewZ: f32) -> u32 {
+    let minDistance = ${minBinSize};
+    let maxDistance = ${maxBinSize};
+
+    let normalizedDepth = clamp((-viewZ - minDistance) / (maxDistance - minDistance), 0.0, 1.0);
+    let binIndex = u32(normalizedDepth * f32(${numClustersZ}));
+    return clamp(binIndex, 0u, ${numClustersZ} - 1u);
 }
 
 @compute @workgroup_size(${workgroupSizeX}, ${workgroupSizeY}, ${workgroupSizeZ})
@@ -127,8 +137,8 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
     // Near and far values of the cluster in view space
     // We use equation (2) directly to obtain the tile values
-    let zNear = cameraUniforms.zNear;
-    let zFar = cameraUniforms.zFar;
+    let zNear = f32(${nearPlane});
+    let zFar = f32(${farPlane});
     let tileNear  = -zNear * pow(zFar / zNear, f32(global_id.z) / ${numClustersZ});
     let tileFar   = -zNear * pow(zFar / zNear, (f32(global_id.z) + 1.0) / ${numClustersZ});
 
@@ -142,10 +152,9 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let maxPointAABB = max(max(minPointNear, minPointFar), max(maxPointNear, maxPointFar));
     
     // Z-Binning
-    let startBinIdx = getZBinIndex(maxPointAABB.z, zNear, zFar);
-    let endBinIdx = getZBinIndex(minPointAABB.z, zNear, zFar);
-    let minBinIdx = min(startBinIdx, endBinIdx);
-    let maxBinIdx = max(startBinIdx, endBinIdx);
+    let bounds = unpackBounds(zBin.bins[global_id.z]);
+    let startLightIdx = bounds.x;
+    let endLightIdx = bounds.y;
 
     // Iterating within lights
     clusterSet.clusters[index].numLights = 0u;
@@ -159,30 +168,13 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     //         break;
     //     }
     // }
-    for (var binIdx = minBinIdx; binIdx <= maxBinIdx; binIdx++) {
-        if (binIdx >= ${numZBins}) { 
-            break; 
+    for (var lightIdx = startLightIdx; lightIdx < endLightIdx; lightIdx++) {
+        if(testSphereAABB(lightIdx, minPointAABB, maxPointAABB)){
+            let numLights = clusterSet.clusters[index].numLights;
+            clusterSet.clusters[index].lightIndices[numLights] = lightIdx;
+            clusterSet.clusters[index].numLights++;
         }
-        
-        let bin = zBinSet.bins[binIdx];
-        let binNumLights = bin.numLights;
-        
-        for (var i = 0u; i < binNumLights; i++) {
-            let lightIdx = bin.lightIndices[i];
-            if (testSphereAABB(lightIdx, minPointAABB, maxPointAABB)) {
-                let numLights = clusterSet.clusters[index].numLights;
-                if (numLights < ${maxNumLights}) {
-                    clusterSet.clusters[index].lightIndices[numLights] = lightIdx;
-                    clusterSet.clusters[index].numLights = numLights + 1u;
-                } else {
-                    // if we have reached the max number of lights, break
-                    break;
-                }
-            }
-        }
-        
-        // if we have reached the max number of lights, break
-        if (clusterSet.clusters[index].numLights >= ${maxNumLights}) {
+        if(clusterSet.clusters[index].numLights >= ${maxNumLights}) {
             break;
         }
     }

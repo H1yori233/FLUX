@@ -36,12 +36,9 @@ fn getClusterIndex(pos: vec3f, fragPos: vec4f) -> u32 {
     let clusterX = clamp(u32(floor(fragPos.x / tileSizePx.x)), 0u, ${numClustersX} - 1u);
     let clusterY = clamp(u32(floor(fragPos.y / tileSizePx.y)), 0u, ${numClustersY} - 1u);
 
-    let viewPos = cameraUniforms.viewMat * vec4(pos, 1.0);
-    let zNear = cameraUniforms.zNear;
-    let zFar  = cameraUniforms.zFar;
-    let sliceF = log(-viewPos.z / zNear) / log(zFar / zNear) *
-                 f32(${numClustersZ});
-    let clusterZ = clamp(u32(sliceF), 0u, ${numClustersZ} - 1u);
+    // let viewPos = cameraUniforms.viewMat * vec4(pos, 1.0);
+    let viewPos = pos;
+    let clusterZ = getZIndex(-viewPos.z);
     return clusterX + 
            clusterY * ${numClustersX} + 
            clusterZ * ${numClustersX} * ${numClustersY};
@@ -63,7 +60,10 @@ fn main(in: FragmentInput) -> @location(0) vec4f
         totalLightContrib += calculateLightContrib(light, in.pos, normalize(in.nor));
     }
 
-    let finalColor = diffuseColor.rgb * totalLightContrib;
+    // let finalColor = diffuseColor.rgb * totalLightContrib;
+    // let finalColor = diffuseColor.rgb;
+    let temp = f32(cluster.numLights) / ${maxNumLights};
+    let finalColor = vec3f(temp, temp, temp);
 
     return vec4(finalColor, 1);
 }

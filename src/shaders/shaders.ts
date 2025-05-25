@@ -1,6 +1,7 @@
 // CHECKITOUT: this file loads all the shaders and preprocesses them with some common code
 
 import { Camera } from '../stage/camera';
+import { canvas } from '../renderer';
 
 import commonRaw from './common.wgsl?raw';
 
@@ -36,12 +37,17 @@ export const constants = {
     lightRadius: 2,
 
     // TODO-2: add constants for light clustering here
-    maxNumLights: 512,
+    nearPlane: Camera.nearPlane,
+    farPlane: Camera.farPlane,
+    
+    maxNumLights: 1024,
 
     numClustersX: 16,
     numClustersY: 10,
     numClustersZ: 24,
-    numZBins: 32,
+
+    minBinSize: 0.1,
+    maxBinSize: 32.1,
     
     workgroupSizeX: 4,
     workgroupSizeY: 4,
