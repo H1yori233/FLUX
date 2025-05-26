@@ -37,13 +37,8 @@ fn main(@builtin(global_invocation_id) global_id: vec3u) {
     
     // swap lights
     if (swap) {
-        let tempPos = lightSet.lights[left].pos;
-        let tempColor = lightSet.lights[left].color;
-        
-        lightSet.lights[left].pos = lightSet.lights[right].pos;
-        lightSet.lights[left].color = lightSet.lights[right].color;
-        
-        lightSet.lights[right].pos = tempPos;
-        lightSet.lights[right].color = tempColor;
+        let tempLight = lightSet.lights[left];
+        lightSet.lights[left] = lightSet.lights[right];
+        lightSet.lights[right] = tempLight;
     }
 }

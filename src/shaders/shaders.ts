@@ -40,18 +40,15 @@ export const constants = {
     nearPlane: Camera.nearPlane,
     farPlane: Camera.farPlane,
     
-    maxNumLights: 1024,
+    maxNumLights: 256,
 
     numClustersX: 16,
     numClustersY: 10,
     numClustersZ: 24,
-
-    minBinSize: 0.1,
-    maxBinSize: 32.1,
     
     workgroupSizeX: 4,
     workgroupSizeY: 4,
-    workgroupSizeZ: 4,
+    workgroupSizeZ: 8,
 };
 
 // =================================

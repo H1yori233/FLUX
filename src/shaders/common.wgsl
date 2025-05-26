@@ -51,6 +51,17 @@ fn calculateLightContrib(light: Light, posView: vec3f, nor: vec3f) -> vec3f {
     return light.color * lambert * rangeAttenuation(distToLight);
 }
 
+// put start and end indices into a single u32
+fn packBounds(startIdx: u32, endIdx: u32) -> u32 {
+    return (startIdx << 16u) | (endIdx & 0xFFFFu);
+}
+
+fn unpackBounds(bounds: u32) -> vec2u {
+    let startIdx = bounds >> 16u;
+    let endIdx = bounds & 0xFFFFu;
+    return vec2u(startIdx, endIdx);
+}
+
 fn getZIndex(depth: f32) -> u32 {
     let zNear = f32(${nearPlane});
     let zFar  = f32(${farPlane});

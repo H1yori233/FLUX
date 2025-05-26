@@ -79,9 +79,7 @@ fn main(in: FragmentInput) -> @location(0) vec4f {
         totalLightContrib += calculateLightContrib(light, position, normal);
     }
 
-    // let finalColor = albedo.rgb * totalLightContrib;
-    let temp = f32(cluster.numLights) / ${maxNumLights};
-    let finalColor = vec3f(temp, temp, temp);
+    let finalColor = albedo.rgb * totalLightContrib;
 
     return vec4(finalColor, 1.0);
 }

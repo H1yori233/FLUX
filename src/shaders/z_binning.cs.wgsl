@@ -1,44 +1,6 @@
 @group(${bindGroup_scene}) @binding(0) var<storage, read> lightSet: LightSet;
 @group(${bindGroup_scene}) @binding(1) var<storage, read_write> zBin: ZBin;
 
-fn binarySearchLowerBound(depth: f32) -> u32 {
-    var left = 0u;
-    var right = lightSet.numLights;
-    
-    while (left < right) {
-        let mid = (left + right) / 2u;
-        let lightPos = lightSet.lights[mid].pos;
-        if (-lightPos.z < depth) {
-            left = mid + 1u;
-        } else {
-            right = mid;
-        }
-    }   
-    return left;
-}
-
-fn binarySearchUpperBound(depth: f32) -> u32 {
-    var left = 0u;
-    var right = lightSet.numLights;
-    
-    while (left < right) {
-        let mid = (left + right) / 2u;
-        let lightPos = lightSet.lights[mid].pos;
-        if (-lightPos.z <= depth) {
-            left = mid + 1u;
-        } else {
-            right = mid;
-        }
-    }
-    
-    return left;
-}
-
-// put start and end indices into a single u32
-fn packBounds(startIdx: u32, endIdx: u32) -> u32 {
-    return (startIdx << 16u) | (endIdx & 0xFFFFu);
-}
-
 @compute @workgroup_size(1)
 fn main(@builtin(global_invocation_id) global_id: vec3u) {
     let binIdx = global_id.x;
@@ -54,10 +16,24 @@ fn main(@builtin(global_invocation_id) global_id: vec3u) {
     let binZFar = zNear * pow(zFar / zNear, (f32(binIdx) + 1.0) / ${numClustersZ});
 
     // Find the first and last light index in the current bin
-    let startIdx = binarySearchLowerBound(binZNear);
-    let endIdx = binarySearchUpperBound(binZFar);
+    var startIdx = 0u;
+    var endIdx = lightSet.numLights;
+    for(var i = 0u; i < lightSet.numLights; i++) {
+        let depth = -lightSet.lights[i].pos.z;
+        if(depth >= binZNear) {
+            startIdx = i;
+            break;
+        }
+    }
 
+    for(var i = lightSet.numLights - 1u; i >= 0u; i--) {
+        let depth = -lightSet.lights[i].pos.z;
+        if(depth < binZFar) {
+            endIdx = i;
+            break;
+        }
+    }
+    
     // Store the start and end indices in the current bin
     zBin.bins[binIdx] = packBounds(startIdx, endIdx);
-    // zBin.bins[binIdx] = packBounds(0u, lightSet.numLights);
 }

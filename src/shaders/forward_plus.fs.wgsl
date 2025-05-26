@@ -60,10 +60,10 @@ fn main(in: FragmentInput) -> @location(0) vec4f
         totalLightContrib += calculateLightContrib(light, in.pos, normalize(in.nor));
     }
 
-    // let finalColor = diffuseColor.rgb * totalLightContrib;
+    let finalColor = diffuseColor.rgb * totalLightContrib;
     // let finalColor = diffuseColor.rgb;
-    let temp = f32(cluster.numLights) / ${maxNumLights};
-    let finalColor = vec3f(temp, temp, temp);
+    // let temp = f32(cluster.numLights) / ${maxNumLights};
+    // let finalColor = vec3f(temp, temp, temp);
 
     return vec4(finalColor, 1);
 }

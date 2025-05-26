@@ -92,21 +92,6 @@ fn testSphereAABB(light: u32, min: vec3f, max: vec3f) -> bool {
     return squaredDistance <= f32(radius * radius);
 }
 
-fn unpackBounds(bounds: u32) -> vec2u {
-    let startIdx = bounds >> 16u;
-    let endIdx = bounds & 0xFFFFu;
-    return vec2u(startIdx, endIdx);
-}
-
-fn getZBinIndex(viewZ: f32) -> u32 {
-    let minDistance = ${minBinSize};
-    let maxDistance = ${maxBinSize};
-
-    let normalizedDepth = clamp((-viewZ - minDistance) / (maxDistance - minDistance), 0.0, 1.0);
-    let binIndex = u32(normalizedDepth * f32(${numClustersZ}));
-    return clamp(binIndex, 0u, ${numClustersZ} - 1u);
-}
-
 @compute @workgroup_size(${workgroupSizeX}, ${workgroupSizeY}, ${workgroupSizeZ})
 fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     if (global_id.x >= ${numClustersX} || 
