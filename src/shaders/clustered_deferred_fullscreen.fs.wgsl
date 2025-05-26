@@ -72,8 +72,9 @@ fn main(in: FragmentInput) -> @location(0) vec4f {
     let position = reconstructViewPosition(texCoord, depth);
     
     let index = (getClusterIndex(position, in.fragPos));
-    var totalLightContrib = vec3f(0, 0, 0);
     let cluster = clusterSet.clusters[index];
+    
+    var totalLightContrib = vec3f(0, 0, 0);
     for (var lightIdx = 0u; lightIdx < cluster.numLights; lightIdx++) {
         let light = lightSet.lights[cluster.lightIndices[lightIdx]];
         totalLightContrib += calculateLightContrib(light, position, normal);

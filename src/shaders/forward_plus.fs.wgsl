@@ -53,17 +53,18 @@ fn main(in: FragmentInput) -> @location(0) vec4f
     }
 
     let index = (getClusterIndex(in.pos, in.fragPos));
-    var totalLightContrib = vec3f(0, 0, 0);
     let cluster = clusterSet.clusters[index];
+    
+    var totalLightContrib = vec3f(0, 0, 0);
     for (var lightIdx = 0u; lightIdx < cluster.numLights; lightIdx++) {
         let light = lightSet.lights[cluster.lightIndices[lightIdx]];
         totalLightContrib += calculateLightContrib(light, in.pos, normalize(in.nor));
     }
 
-    let finalColor = diffuseColor.rgb * totalLightContrib;
+    // let finalColor = diffuseColor.rgb * totalLightContrib;
     // let finalColor = diffuseColor.rgb;
-    // let temp = f32(cluster.numLights) / ${maxNumLights};
-    // let finalColor = vec3f(temp, temp, temp);
+    let temp = f32(cluster.numLights) / ${maxNumLights};
+    let finalColor = vec3f(temp, temp, temp);
 
     return vec4(finalColor, 1);
 }

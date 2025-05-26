@@ -40,7 +40,7 @@ export const constants = {
     nearPlane: Camera.nearPlane,
     farPlane: Camera.farPlane,
     
-    maxNumLights: 256,
+    maxNumLights: 512,
 
     numClustersX: 16,
     numClustersY: 10,
