@@ -44,7 +44,7 @@ export class Camera {
     sensitivity: number = 0.15;
 
     static readonly nearPlane = 0.1;
-    static readonly farPlane = 100;
+    static readonly farPlane = 1000;
 
     keys: { [key: string]: boolean } = {};
 
