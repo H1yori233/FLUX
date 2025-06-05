@@ -30,14 +30,12 @@ struct FragmentInput
     @location(2) uv: vec2f
 }
 
-fn getClusterIndex(pos: vec3f, fragPos: vec4f) -> u32 {
+fn getClusterIndex(viewPos: vec3f, fragPos: vec4f) -> u32 {
     let tileSizePx = cameraUniforms.screenDimensions.xy / 
                      vec2(${numClustersX}, ${numClustersY});
     let clusterX = clamp(u32(floor(fragPos.x / tileSizePx.x)), 0u, ${numClustersX} - 1u);
     let clusterY = clamp(u32(floor(fragPos.y / tileSizePx.y)), 0u, ${numClustersY} - 1u);
 
-    // let viewPos = cameraUniforms.viewMat * vec4(pos, 1.0);
-    let viewPos = pos;
     let clusterZ = getZIndex(-viewPos.z);
     return clusterX + 
            clusterY * ${numClustersX} + 

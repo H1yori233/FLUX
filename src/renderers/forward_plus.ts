@@ -12,6 +12,7 @@ export class ForwardPlusRenderer extends renderer.Renderer {
     depthTextureView: GPUTextureView;
 
     pipeline: GPURenderPipeline;
+    renderBundle: GPURenderBundle;
 
     constructor(stage: Stage) {
         super(stage);
@@ -97,6 +98,42 @@ export class ForwardPlusRenderer extends renderer.Renderer {
                 ]
             }
         });
+
+        // Create render bundle
+        let bundleEncoder = renderer.device.createRenderBundleEncoder({
+            colorFormats: [renderer.canvasFormat],
+            depthStencilFormat: "depth24plus",
+        });
+          
+        bundleEncoder.setPipeline(this.pipeline);
+        bundleEncoder.setBindGroup(shaders.constants.bindGroup_scene, this.sceneUniformsBindGroup);
+
+        this.scene.iterate(node => {
+            bundleEncoder.setBindGroup(shaders.constants.bindGroup_model, node.modelBindGroup);
+        }, material => {
+            bundleEncoder.setBindGroup(shaders.constants.bindGroup_material, material.materialBindGroup);
+        }, primitive => {
+            bundleEncoder.setVertexBuffer(0, primitive.vertexBuffer);
+            bundleEncoder.setIndexBuffer(primitive.indexBuffer, 'uint32');
+            bundleEncoder.drawIndexed(primitive.numIndices);
+        });
+
+        this.renderBundle = bundleEncoder.finish();
+    }
+
+    encodeRenderCommands(renderPass: GPURenderPassEncoder) {
+        renderPass.setPipeline(this.pipeline);
+        renderPass.setBindGroup(shaders.constants.bindGroup_scene, this.sceneUniformsBindGroup);
+
+        this.scene.iterate(node => {
+            renderPass.setBindGroup(shaders.constants.bindGroup_model, node.modelBindGroup);
+        }, material => {
+            renderPass.setBindGroup(shaders.constants.bindGroup_material, material.materialBindGroup);
+        }, primitive => {
+            renderPass.setVertexBuffer(0, primitive.vertexBuffer);
+            renderPass.setIndexBuffer(primitive.indexBuffer, 'uint32');
+            renderPass.drawIndexed(primitive.numIndices);
+        });
     }
 
     override draw() {
@@ -125,19 +162,14 @@ export class ForwardPlusRenderer extends renderer.Renderer {
                 depthStoreOp: "store"
             }
         });
-        renderPass.setPipeline(this.pipeline);
-        renderPass.setBindGroup(shaders.constants.bindGroup_scene, this.sceneUniformsBindGroup);
 
-        this.scene.iterate(node => {
-            renderPass.setBindGroup(shaders.constants.bindGroup_model, node.modelBindGroup);
-        }, material => {
-            renderPass.setBindGroup(shaders.constants.bindGroup_material, material.materialBindGroup);
-        }, primitive => {
-            renderPass.setVertexBuffer(0, primitive.vertexBuffer);
-            renderPass.setIndexBuffer(primitive.indexBuffer, 'uint32');
-            renderPass.drawIndexed(primitive.numIndices);
-        });
-
+        if (this.bUseRenderBundles) {
+            renderPass.executeBundles([this.renderBundle]);
+        }
+        else {
+            this.encodeRenderCommands(renderPass);
+        }
+        
         renderPass.end();
 
         renderer.device.queue.submit([encoder.finish()]);

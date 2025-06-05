@@ -34,6 +34,20 @@ const stage = new Stage(scene, lights, camera, stats);
 
 var renderer: Renderer | undefined;
 
+class guiStatsStruct
+{
+    UseRenderBundle : boolean = false;
+}
+const guiStats = new guiStatsStruct();
+
+function setUseRenderBundle() {
+    if (renderer)
+    {
+        renderer.bUseRenderBundles = guiStats.UseRenderBundle;
+    }
+}
+gui.add(guiStats, "UseRenderBundle").onChange(() => setUseRenderBundle());
+
 function setRenderer(mode: string) {
     renderer?.stop();
 

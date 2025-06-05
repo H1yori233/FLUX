@@ -27,6 +27,9 @@ export class ClusteredDeferredRenderer extends renderer.Renderer {
     gBufferBindGroup: GPUBindGroup;
     gBufferPipeline: GPURenderPipeline;
     fullscreenPipeline: GPURenderPipeline;
+    
+    gBufferRenderBundle: GPURenderBundle;
+    fullscreenRenderBundle: GPURenderBundle;
 
     constructor(stage: Stage) {
         super(stage);
@@ -231,6 +234,61 @@ export class ClusteredDeferredRenderer extends renderer.Renderer {
                 ]
             }
         });
+
+        // Create G-buffer render bundle
+        let gBufferBundleEncoder = renderer.device.createRenderBundleEncoder({
+            colorFormats: ["rgba16float", "rgba16float", renderer.canvasFormat],
+            depthStencilFormat: "depth24plus",
+        });
+          
+        gBufferBundleEncoder.setPipeline(this.gBufferPipeline);
+        gBufferBundleEncoder.setBindGroup(shaders.constants.bindGroup_scene, this.sceneUniformsBindGroup);
+
+        this.scene.iterate(node => {
+            gBufferBundleEncoder.setBindGroup(shaders.constants.bindGroup_model, node.modelBindGroup);
+        }, material => {
+            gBufferBundleEncoder.setBindGroup(shaders.constants.bindGroup_material, material.materialBindGroup);
+        }, primitive => {
+            gBufferBundleEncoder.setVertexBuffer(0, primitive.vertexBuffer);
+            gBufferBundleEncoder.setIndexBuffer(primitive.indexBuffer, 'uint32');
+            gBufferBundleEncoder.drawIndexed(primitive.numIndices);
+        });
+
+        this.gBufferRenderBundle = gBufferBundleEncoder.finish();
+
+        // Create fullscreen render bundle
+        let fullscreenBundleEncoder = renderer.device.createRenderBundleEncoder({
+            colorFormats: [renderer.canvasFormat]
+        });
+          
+        fullscreenBundleEncoder.setPipeline(this.fullscreenPipeline);
+        fullscreenBundleEncoder.setBindGroup(shaders.constants.bindGroup_scene, this.sceneUniformsBindGroup);
+        fullscreenBundleEncoder.setBindGroup(shaders.constants.bindGroup_gbuffer, this.gBufferBindGroup);
+        fullscreenBundleEncoder.draw(4);
+
+        this.fullscreenRenderBundle = fullscreenBundleEncoder.finish();
+    }
+
+    encodeGBufferRenderCommands(gBufferPass: GPURenderPassEncoder) {
+        gBufferPass.setPipeline(this.gBufferPipeline);
+        gBufferPass.setBindGroup(shaders.constants.bindGroup_scene, this.sceneUniformsBindGroup);
+        
+        this.scene.iterate(node => {
+            gBufferPass.setBindGroup(shaders.constants.bindGroup_model, node.modelBindGroup);
+        }, material => {
+            gBufferPass.setBindGroup(shaders.constants.bindGroup_material, material.materialBindGroup);
+        }, primitive => {
+            gBufferPass.setVertexBuffer(0, primitive.vertexBuffer);
+            gBufferPass.setIndexBuffer(primitive.indexBuffer, 'uint32');
+            gBufferPass.drawIndexed(primitive.numIndices);
+        });
+    }
+
+    encodeFullscreenRenderCommands(fullscreenPass: GPURenderPassEncoder) {
+        fullscreenPass.setPipeline(this.fullscreenPipeline);
+        fullscreenPass.setBindGroup(shaders.constants.bindGroup_scene, this.sceneUniformsBindGroup);
+        fullscreenPass.setBindGroup(shaders.constants.bindGroup_gbuffer, this.gBufferBindGroup);
+        fullscreenPass.draw(4);
     }
 
     encodeGBufferPass(encoder: GPUCommandEncoder)
@@ -265,18 +323,12 @@ export class ClusteredDeferredRenderer extends renderer.Renderer {
             }
         });
         
-        gBufferPass.setPipeline(this.gBufferPipeline);
-        gBufferPass.setBindGroup(shaders.constants.bindGroup_scene, this.sceneUniformsBindGroup);
-        
-        this.scene.iterate(node => {
-            gBufferPass.setBindGroup(shaders.constants.bindGroup_model, node.modelBindGroup);
-        }, material => {
-            gBufferPass.setBindGroup(shaders.constants.bindGroup_material, material.materialBindGroup);
-        }, primitive => {
-            gBufferPass.setVertexBuffer(0, primitive.vertexBuffer);
-            gBufferPass.setIndexBuffer(primitive.indexBuffer, 'uint32');
-            gBufferPass.drawIndexed(primitive.numIndices);
-        });
+        if (this.bUseRenderBundles) {
+            gBufferPass.executeBundles([this.gBufferRenderBundle]);
+        }
+        else {
+            this.encodeGBufferRenderCommands(gBufferPass);
+        }
         
         gBufferPass.end();
     }
@@ -295,10 +347,12 @@ export class ClusteredDeferredRenderer extends renderer.Renderer {
             ]
         });
         
-        fullscreenPass.setPipeline(this.fullscreenPipeline);
-        fullscreenPass.setBindGroup(shaders.constants.bindGroup_scene, this.sceneUniformsBindGroup);
-        fullscreenPass.setBindGroup(shaders.constants.bindGroup_gbuffer, this.gBufferBindGroup);
-        fullscreenPass.draw(4);  // Draw fullscreen quad (composed of two triangles in vertex shader)
+        if (this.bUseRenderBundles) {
+            fullscreenPass.executeBundles([this.fullscreenRenderBundle]);
+        }
+        else {
+            this.encodeFullscreenRenderCommands(fullscreenPass);
+        }
         
         fullscreenPass.end();
     }

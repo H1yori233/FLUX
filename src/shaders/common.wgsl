@@ -51,6 +51,56 @@ fn calculateLightContrib(light: Light, posView: vec3f, nor: vec3f) -> vec3f {
     return light.color * lambert * rangeAttenuation(distToLight);
 }
 
+// octahedron normal encoding
+fn encodeNormal(normal: vec3f) -> vec2f {
+    // project positions in the sphere onto a octahedron (which |X'| + |Y'| + |Z'| = 1)
+    let p = normal.xy / (abs(normal.x) + abs(normal.y) + abs(normal.z));
+    var x: f32;
+    var y: f32;
+    
+    // X^2 + Y^2 + Z^2 = 1 -> we can only store X and Y, but need SIGN of Z    
+    if (normal.z < 0.0) {
+        // |p'.x| = |p.x| + |p.z| = |p.x| - p.z
+        if (p.x >= 0.0) {
+            x = (1.0 - abs(p.y));
+        } else {
+            x = -(1.0 - abs(p.y));
+        }
+        
+        // |p'.y| = |p.y| + |p.z| = |p.y| - p.z
+        if (p.y >= 0.0) {
+            y = (1.0 - abs(p.x));
+        } else {
+            y = -(1.0 - abs(p.x));
+        }
+    } else {
+        x = p.x;
+        y = p.y;
+        // so p.z = 1 - |p.x| - |p.y|
+    }
+    return vec2f(x, y);
+}
+
+fn decodeNormal(encoded: vec2f) -> vec3f {
+    // |X'| + |Y'| + |Z'| = 1 -> p.z = 1 - |p.x| - |p.y|
+    let n = vec3f(encoded.x, encoded.y, 1.0 - abs(encoded.x) - abs(encoded.y));
+    let t = max(-n.z, 0.0);
+
+    var result = n;
+    if (n.x >= 0.0) {
+        result.x -= t;
+    } else {
+        result.x += t;
+    }
+    
+    if (n.y >= 0.0) {
+        result.y -= t;
+    } else {
+        result.y += t;
+    }
+    return normalize(result);
+}
+
 // put start and end indices into a single u32
 fn packBounds(startIdx: u32, endIdx: u32) -> u32 {
     return (startIdx << 16u) | (endIdx & 0xFFFFu);

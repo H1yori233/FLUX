@@ -84,8 +84,6 @@ fn sqDistPointAABB(point: vec3f, min: vec3f, max: vec3f) -> f32 {
 
 fn testSphereAABB(light: u32, min: vec3f, max: vec3f) -> bool {
     let radius = ${lightRadius};
-    // let pos = vec4(lightSet.lights[light].pos, 1.0);
-    // let center  = (cameraUniforms.viewMat * pos).xyz;
     let center = lightSet.lights[light].pos;
     let squaredDistance = sqDistPointAABB(center, min, max);
 

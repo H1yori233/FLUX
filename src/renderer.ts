@@ -101,6 +101,17 @@ export const vertexBufferLayout: GPUVertexBufferLayout = {
     ]
 };
 
+export const quadVertexBufferLayout: GPUVertexBufferLayout = {
+    arrayStride: 8,
+    attributes: [
+        { // pos
+            format: "float32x2",
+            offset: 0,
+            shaderLocation: 0
+        }
+    ]
+};
+
 export abstract class Renderer {
     protected scene: Scene;
     protected lights: Lights;
@@ -111,6 +122,10 @@ export abstract class Renderer {
     private prevTime: number = 0;
     private frameRequestId: number;
 
+    bUseRenderBundles: boolean = false;
+    protected quadVertexBuffer: GPUBuffer;
+    protected quadIndexBuffer: GPUBuffer;
+
     constructor(stage: Stage) {
         this.scene = stage.scene;
         this.lights = stage.lights;
@@ -118,6 +133,24 @@ export abstract class Renderer {
         this.stats = stage.stats;
 
         this.frameRequestId = requestAnimationFrame((t) => this.onFrame(t));
+
+        // Create quad buffers for fullscreen rendering
+        let quadVerts = new Float32Array([-1.0, -1.0, 1.0, -1.0, -1.0, 1.0, 1.0, 1.0]);
+        let quadIndex = new Uint32Array([0, 1, 2, 2, 1, 3]);
+
+        this.quadVertexBuffer = device.createBuffer({
+            label: "vertex buffer",
+            size: quadVerts.byteLength,
+            usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
+        });
+        device.queue.writeBuffer(this.quadVertexBuffer, 0, quadVerts);
+
+        this.quadIndexBuffer = device.createBuffer({
+            label: "index buffer",
+            size: quadIndex.byteLength,
+            usage: GPUBufferUsage.INDEX | GPUBufferUsage.COPY_DST,
+        });
+        device.queue.writeBuffer(this.quadIndexBuffer, 0, quadIndex);
     }
 
     stop(): void {
