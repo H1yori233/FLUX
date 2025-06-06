@@ -14,7 +14,7 @@ export class Lights {
     private camera: Camera;
 
     // numLights = 50;
-    numLights = 1000;
+    numLights = 500;
     static readonly maxNumLights = 5000;
     static readonly numFloatsPerLight = 8; // vec3f is aligned at 16 byte boundaries
 
@@ -34,18 +34,6 @@ export class Lights {
     clusteringComputeBindGroupLayout: GPUBindGroupLayout;
     clusteringComputeBindGroup: GPUBindGroup;
     clusteringComputePipeline: GPUComputePipeline;
-
-    // Light sorting
-    bitonicSortComputeBindGroupLayout: GPUBindGroupLayout;
-    bitonicSortComputeBindGroup: GPUBindGroup;
-    bitonicSortComputePipelines: GPUComputePipeline[];
-
-    // Z-binning
-    zBinsArray: Float32Array;
-    zBinSetStorageBuffer: GPUBuffer;
-    zBinningComputeBindGroupLayout: GPUBindGroupLayout;
-    zBinningComputeBindGroup: GPUBindGroup;
-    zBinningComputePipeline: GPUComputePipeline;
 
     constructor(camera: Camera) {
         this.camera = camera;
@@ -121,87 +109,6 @@ export class Lights {
 
         // TODO-2: initialize layouts, pipelines, textures, etc. needed for light clustering here
     
-        // Light sorting
-        this.bitonicSortComputeBindGroupLayout = device.createBindGroupLayout({
-            label: "bitonic sort compute bind group layout",
-            entries: [
-                { // lightSet
-                    binding: 0,
-                    visibility: GPUShaderStage.COMPUTE,
-                    buffer: { type: "storage" }
-                }
-            ]
-        });
-
-        this.bitonicSortComputeBindGroup = device.createBindGroup({
-            label: "bitonic sort compute bind group",
-            layout: this.bitonicSortComputeBindGroupLayout,
-            entries: [
-                {
-                    binding: 0,
-                    resource: { buffer: this.lightSetStorageBuffer }
-                }
-            ]
-        });
-
-        this.bitonicSortComputePipelines = [];
-        this.initBitonicSortPipelines();
-
-        // Z-binning
-        this.zBinsArray = new Float32Array(shaders.constants.numClustersZ);
-
-        this.zBinSetStorageBuffer = device.createBuffer({
-            label: "z-bin set",
-            size: shaders.constants.numClustersZ * 4,
-            usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST
-        });
-
-        this.zBinningComputeBindGroupLayout = device.createBindGroupLayout({
-            label: "z binning compute bind group layout",
-            entries: [
-                { // lightSet
-                    binding: 0,
-                    visibility: GPUShaderStage.COMPUTE,
-                    buffer: { type: "read-only-storage" }
-                },
-                { // zBinSet
-                    binding: 1,
-                    visibility: GPUShaderStage.COMPUTE,
-                    buffer: { type: "storage" }
-                }
-            ]
-        });
-
-        this.zBinningComputeBindGroup = device.createBindGroup({
-            label: "z binning compute bind group",
-            layout: this.zBinningComputeBindGroupLayout,
-            entries: [
-                {
-                    binding: 0,
-                    resource: { buffer: this.lightSetStorageBuffer }
-                },
-                {
-                    binding: 1,
-                    resource: { buffer: this.zBinSetStorageBuffer }
-                }
-            ]
-        });
-
-        this.zBinningComputePipeline = device.createComputePipeline({
-            label: "z binning compute pipeline",
-            layout: device.createPipelineLayout({
-                label: "z binning compute pipeline layout",
-                bindGroupLayouts: [ this.zBinningComputeBindGroupLayout ]
-            }),
-            compute: {
-                module: device.createShaderModule({
-                    label: "z binning compute shader",
-                    code: shaders.zBinningComputeSrc
-                }),
-                entryPoint: "main"
-            }
-        });
-
         // Light clustering
         this.clusterSetStorageBuffer = device.createBuffer({
             label: "cluster set",
@@ -229,11 +136,6 @@ export class Lights {
                     binding: 2,
                     visibility: GPUShaderStage.COMPUTE,
                     buffer: { type: "storage" }
-                },
-                { // zBinSet
-                    binding: 3,
-                    visibility: GPUShaderStage.COMPUTE,
-                    buffer: { type: "read-only-storage" }
                 }
             ]
         });
@@ -253,10 +155,6 @@ export class Lights {
                 {
                     binding: 2,
                     resource: { buffer: this.clusterSetStorageBuffer }
-                },
-                {
-                    binding: 3,
-                    resource: { buffer: this.zBinSetStorageBuffer }
                 }
             ]
         });
@@ -277,40 +175,6 @@ export class Lights {
         });
     }
 
-    private initBitonicSortPipelines() {
-        const powerOfTwo = 1 << Math.ceil(Math.log2(this.numLights));
-        const maxStep = Math.log2(powerOfTwo);
-
-        for (let step = 1; step <= maxStep; ++step) {
-            for (let stage = 0; stage < step; ++stage) {
-                const module = device.createShaderModule({
-                    label: `bitonic cs step=${step} stage=${stage}`,
-                    code: shaders.bitonicSortLightsComputeSrc
-                });
-
-                const pipeline = device.createComputePipeline({
-                    label: `bitonic pipeline step=${step} stage=${stage}`,
-                    layout: device.createPipelineLayout({
-                        label: "bitonic pipeline layout",
-                        bindGroupLayouts: [
-                            this.bitonicSortComputeBindGroupLayout,
-                        ],
-                    }),
-                    compute: {
-                        module,
-                        entryPoint: "main",
-                        constants: {
-                            0: step,
-                            1: stage,
-                        },
-                    }
-                });
-
-                this.bitonicSortComputePipelines.push(pipeline);
-            }
-        }
-    }
-
     private populateLightsBuffer() {
         for (let lightIdx = 0; lightIdx < Lights.maxNumLights; ++lightIdx) {
             // light pos is set by compute shader so no need to set it here
@@ -325,47 +189,9 @@ export class Lights {
         device.queue.writeBuffer(this.lightSetStorageBuffer, 0, new Uint32Array([this.numLights]));
     }
 
-    private doLightSorting(encoder: GPUCommandEncoder) {
-        const workgroupCount = Math.ceil(this.numLights / 2 / 
-                                         shaders.constants.moveLightsWorkgroupSize);
-
-        const computePass = encoder.beginComputePass({
-            label: "bitonic sort pass",
-        });
-        computePass.setBindGroup(0, this.bitonicSortComputeBindGroup);
-
-        for (const pipeline of this.bitonicSortComputePipelines) {
-            computePass.setPipeline(pipeline);
-            computePass.dispatchWorkgroups(workgroupCount);
-        }
-
-        computePass.end();
-    }
-
-    private doZBinning(encoder: GPUCommandEncoder) {
-        // clear z-bin set
-        device.queue.writeBuffer(this.zBinSetStorageBuffer, 0, 
-            new Uint32Array(shaders.constants.numClustersZ).fill(0));
-
-        const computePass = encoder.beginComputePass({
-            label: "z-binning pass"
-        });
-
-        computePass.setPipeline(this.zBinningComputePipeline);
-
-        computePass.setBindGroup(0, this.zBinningComputeBindGroup);
-        
-        computePass.dispatchWorkgroups(shaders.constants.numClustersZ);
-
-        computePass.end();
-    }
-
     doLightClustering(encoder: GPUCommandEncoder) {
         // TODO-2: run the light clustering compute pass(es) here
         // implementing clustering here allows for reusing the code in both Forward+ and Clustered Deferred
-        
-        this.doLightSorting(encoder);
-        this.doZBinning(encoder);
         
         const computePass = encoder.beginComputePass();
         computePass.setPipeline(this.clusteringComputePipeline);

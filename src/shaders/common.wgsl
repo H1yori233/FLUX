@@ -34,10 +34,6 @@ struct ClusterSet {
     clusters: array<Cluster>
 }
 
-struct ZBin {
-    bins: array<u32, ${numClustersZ}>
-}
-
 // CHECKITOUT: this special attenuation function ensures lights don't affect geometry outside the maximum light radius
 fn rangeAttenuation(distance: f32) -> f32 {
     return clamp(1.f - pow(distance / ${lightRadius}, 4.f), 0.f, 1.f) / (distance * distance);
@@ -101,17 +97,6 @@ fn decodeNormal(encoded: vec2f) -> vec3f {
     return normalize(result);
 }
 
-// put start and end indices into a single u32
-fn packBounds(startIdx: u32, endIdx: u32) -> u32 {
-    return (startIdx << 16u) | (endIdx & 0xFFFFu);
-}
-
-fn unpackBounds(bounds: u32) -> vec2u {
-    let startIdx = bounds >> 16u;
-    let endIdx = bounds & 0xFFFFu;
-    return vec2u(startIdx, endIdx);
-}
-
 fn getZIndex(depth: f32) -> u32 {
     let zNear = f32(${nearPlane});
     let zFar  = f32(${farPlane});
@@ -119,4 +104,8 @@ fn getZIndex(depth: f32) -> u32 {
                  f32(${numClustersZ});
     let clusterZ = clamp(u32(sliceF), 0u, ${numClustersZ} - 1u);
     return clusterZ;
+}
+
+fn luminance(color: vec3f) -> f32 {
+    return dot(color, vec3f(0.2126, 0.7152, 0.0722));
 }

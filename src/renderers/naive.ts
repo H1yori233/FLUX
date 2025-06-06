@@ -11,6 +11,8 @@ export class NaiveRenderer extends renderer.Renderer {
 
     pipeline: GPURenderPipeline;
     renderBundle: GPURenderBundle;
+    
+
 
     constructor(stage: Stage) {
         super(stage);
@@ -128,15 +130,14 @@ export class NaiveRenderer extends renderer.Renderer {
         });
     }
 
-    override draw() {
+    override drawScene(targetView: GPUTextureView) {
         const encoder = renderer.device.createCommandEncoder();
-        const canvasTextureView = renderer.context.getCurrentTexture().createView();
 
         const renderPass = encoder.beginRenderPass({
             label: "naive render pass",
             colorAttachments: [
                 {
-                    view: canvasTextureView,
+                    view: targetView,
                     clearValue: [0, 0, 0, 0],
                     loadOp: "clear",
                     storeOp: "store"

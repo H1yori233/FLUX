@@ -15,13 +15,13 @@ import clusteredDeferredFullscreenVertRaw from './clustered_deferred_fullscreen.
 import clusteredDeferredFullscreenFragRaw from './clustered_deferred_fullscreen.fs.wgsl?raw';
 
 import clusteredDeferredOptimizationFragRaw from './clustered_deferred_optimization/clustered_deferred.fs.wgsl?raw';
-import clusteredDeferredOptimizationFullscreenVertRaw from './clustered_deferred_optimization/clustered_deferred_fullscreen.vs.wgsl?raw';
 import clusteredDeferredOptimizationFullscreenFragRaw from './clustered_deferred_optimization/clustered_deferred_fullscreen.fs.wgsl?raw';
 
 import moveLightsComputeRaw from './move_lights.cs.wgsl?raw';
 import clusteringComputeRaw from './clustering.cs.wgsl?raw';
-import bitonicSortLightsComputeRaw from './bitonic_sort_lights.cs.wgsl?raw';
-import zBinningComputeRaw from './z_binning.cs.wgsl?raw';
+
+import grayFragRaw from './post_processing/gray.fs.wgsl?raw';
+import toonFragRaw from './post_processing/toon.fs.wgsl?raw';
 
 // CONSTANTS (for use in shaders)
 // =================================
@@ -35,6 +35,7 @@ export const constants = {
     bindGroup_model: 1,
     bindGroup_material: 2,
     bindGroup_gbuffer: 1,
+    bindGroup_postProcessing: 0,
 
     moveLightsWorkgroupSize: 128,
 
@@ -44,13 +45,13 @@ export const constants = {
     nearPlane: Camera.nearPlane,
     farPlane: Camera.farPlane,
     
-    maxNumLights: 128,
+    maxNumLights: 512,
 
     numClustersX: 16,
-    numClustersY: 10,
-    numClustersZ: 24,
+    numClustersY: 9,
+    numClustersZ: 16,
     
-    workgroupSizeX: 4,
+    workgroupSizeX: 8,
     workgroupSizeY: 4,
     workgroupSizeZ: 8,
 };
@@ -77,10 +78,10 @@ export const clusteredDeferredFullscreenVertSrc: string = processShaderRaw(clust
 export const clusteredDeferredFullscreenFragSrc: string = processShaderRaw(clusteredDeferredFullscreenFragRaw);
 
 export const clusteredDeferredOptimizationFragSrc: string = processShaderRaw(clusteredDeferredOptimizationFragRaw);
-export const clusteredDeferredOptimizationFullscreenVertSrc: string = processShaderRaw(clusteredDeferredOptimizationFullscreenVertRaw);
 export const clusteredDeferredOptimizationFullscreenFragSrc: string = processShaderRaw(clusteredDeferredOptimizationFullscreenFragRaw);
 
 export const moveLightsComputeSrc: string = processShaderRaw(moveLightsComputeRaw);
 export const clusteringComputeSrc: string = processShaderRaw(clusteringComputeRaw);
-export const bitonicSortLightsComputeSrc: string = processShaderRaw(bitonicSortLightsComputeRaw);
-export const zBinningComputeSrc: string = processShaderRaw(zBinningComputeRaw);
+
+export const grayFragSrc: string = processShaderRaw(grayFragRaw);
+export const toonFragSrc: string = processShaderRaw(toonFragRaw);

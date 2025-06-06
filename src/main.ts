@@ -37,6 +37,9 @@ var renderer: Renderer | undefined;
 class guiStatsStruct
 {
     UseRenderBundle : boolean = false;
+    UsePostProcessing : boolean = false;
+    UseGray : boolean = false;
+    UseToon : boolean = false;
 }
 const guiStats = new guiStatsStruct();
 
@@ -46,7 +49,27 @@ function setUseRenderBundle() {
         renderer.bUseRenderBundles = guiStats.UseRenderBundle;
     }
 }
+
+function setUsePostProcessing() {
+    if (renderer) {
+        if (guiStats.UsePostProcessing) {
+            (renderer as any).initPostProcessing?.();
+        } else {
+            (renderer as any).bUsePostProcessing = false;
+        }
+    }
+}
+
+function setPostProcessEffects() {
+    if (renderer && (renderer as any).setPostProcessingEffects) {
+        (renderer as any).setPostProcessingEffects(guiStats.UseGray, guiStats.UseToon);
+    }
+}
+
 gui.add(guiStats, "UseRenderBundle").onChange(() => setUseRenderBundle());
+gui.add(guiStats, "UsePostProcessing").onChange(() => setUsePostProcessing());
+gui.add(guiStats, "UseGray").onChange(() => setPostProcessEffects());
+gui.add(guiStats, "UseToon").onChange(() => setPostProcessEffects());
 
 function setRenderer(mode: string) {
     renderer?.stop();
@@ -64,6 +87,15 @@ function setRenderer(mode: string) {
         case renderModes.clusteredDeferredOptimization:
             renderer = new ClusteredDeferredOptimizationRenderer(stage);
             break;
+    }
+    
+    // Apply current settings to new renderer
+    if (renderer) {
+        renderer.bUseRenderBundles = guiStats.UseRenderBundle;
+        if (guiStats.UsePostProcessing) {
+            (renderer as any).initPostProcessing?.();
+        }
+        (renderer as any).setPostProcessingEffects?.(guiStats.UseGray, guiStats.UseToon);
     }
 }
 

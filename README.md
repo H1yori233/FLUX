@@ -1,123 +1,154 @@
-WebGL Forward+ and Clustered Deferred Shading
+WebGPU Forward+ and Clustered Deferred Shading
 ======================
+
+<div align="center">
 
 **University of Pennsylvania, CIS 565: GPU Programming and Architecture, Project 4**
 
-* H1yori233
-  * [Github](https://github.com/H1yori233)
-  * https://h1yori233.github.io
-  * https://www.linkedin.com/in/kaiqin-kong-4709b0357/
-* Tested on: **Google Chrome 137.0.7107.0, canary** on Windows 11, AMD Ryzen 7 5800H @ 3.20GHz 16GB, RTX 3050 Laptop 4GB
+*H1yori233* • [GitHub](https://github.com/H1yori233) • [Portfolio](https://h1yori233.github.io) • [LinkedIn](https://www.linkedin.com/in/kaiqin-kong-4709b0357/)
 
-### Live Demo
+**Tested on:** Google Chrome 137.0.7107.0 (canary) on Windows 11, AMD Ryzen 7 5800H @ 3.20GHz 16GB, RTX 3050 Laptop 4GB
 
-[![demo](img/screenshot.png)](https://h1yori233.github.io/WebGPU-Forward-Plus-and-Clustered-Deferred/)
+---
 
-### Demo Video/GIF
+### 🌐 [**Live Demo**](https://h1yori233.github.io/WebGPU-Forward-Plus-and-Clustered-Deferred/)
 
-[![](img/video.mp4)](TODO)
+</div>
 
-## Project Overview
+<table>
+<tr>
+<td width="50%">
 
-This project implements three different rendering techniques:
-1. **Naive Forward Rendering** - Traditional forward rendering
-2. **Forward+ (Tiled Forward) Rendering** - Tile-based forward rendering
-3. **Clustered Deferred Rendering** - Clustered deferred rendering
+![Screenshot](img/screenshot.png)
 
-The project uses WebGPU technology to demonstrate the implementation and performance comparison of modern GPU rendering pipeline lighting optimization techniques.
+</td>
+<td width="50%">
 
-## Technical Implementation
+## Features Implemented
 
-### Forward+ Rendering
-![clustering](img/clustering.png)
+✅ **Core Rendering Methods**
+- Naive Forward Rendering
+- Forward+ Rendering with Light Clustering
+- Clustered Deferred Rendering
+- G-Buffer Optimization (Single Texture)
 
-Forward+ rendering optimizes lighting calculations by dividing screen space into multiple frustums (clusters). Key features:
+✅ **Advanced Optimizations**
+- G-Buffer Data Packing 
+- Render Bundles Support
+- Post-Processing Pipeline
 
-- **Spatial Subdivision**: Divides the view frustum into a 16x9x24 3D grid
-- **Light Culling**: Tests light-cluster collision detection in compute shaders
-- **Index Storage**: Only stores light indices that affect each cluster, avoiding unnecessary lighting calculations
+</td>
+</tr>
+</table>
 
-Core implementation files:
-- `src/renderers/forward_plus.ts` - Forward+ renderer
-- `src/shaders/clustering.cs.wgsl` - Clustering compute shader
-- `src/shaders/forward_plus.fs.wgsl` - Forward+ fragment shader
+---
 
-![cluster_set](img/cluster_set.png)
+## 🎬 Demo Video
 
-### Clustered Deferred Rendering
+[![Demo Video](img/screenshot.png)](TODO)
 
-Combines clustering techniques with deferred rendering for further performance optimization:
+> *30+ second demonstration showcasing all rendering modes and effects*
 
-**G-Buffer Design**:
-- Uses a single `rgba32uint` texture to store all geometric information
-- Normals compressed to 2 components using Octahedron encoding
-- Positions reconstructed from depth values and camera inverse matrix
+---
 
-**Rendering Pipeline**:
-```
-Geometry Pass -> G-Buffer Generation -> Fullscreen Lighting
-```
+## 📊 Technical Overview
 
-Compared to traditional methods, reduces redundant triangle-light calculations:
+### Rendering Pipeline Comparison
 
-From:
-```cpp
-for each triangle:
-    for each light:
-        calculate lighting
-```
+<div align="center">
 
-To:
-```cpp
-for each pixel:
-    for each light in cluster:
-        calculate lighting
-```
+| Method | G-Buffer | Clustering | Lighting Pass |
+|--------|----------|------------|---------------|
+| **Naive** | ❌ | ❌ | Per-fragment all lights |
+| **Forward+** | ❌ | ✅ | Per-fragment clustered lights |
+| **Clustered Deferred** | ✅ Multi-target | ✅ | Fullscreen pass |
+| **Optimized Deferred** | ✅ Single texture | ✅ | Fullscreen pass |
 
-![g-buffer](img/g-buffer.png)
+</div>
 
-Core implementation files:
-- `src/renderers/clustered_deferred.ts` - Clustered Deferred renderer
-- `src/shaders/clustered_deferred.fs.wgsl` - G-Buffer generation shader
-- `src/shaders/clustered_deferred_fullscreen.fs.wgsl` - Fullscreen lighting shader
+### Light Clustering Visualization
 
-### G-Buffer Compression Optimization
+<table>
+<tr>
+<td width="50%">
 
-To reduce memory usage, efficient G-Buffer compression is implemented:
+![Clustering](img/clustering.png)
+<p align="center"><em>3D Light Clustering</em></p>
 
-1. **Position Reconstruction**: World coordinates not stored, reconstructed from depth values and camera inverse matrix
-2. **Normal Compression**: Uses Octahedron normal vector encoding to compress 3D normals to 2D
-3. **Data Packing**: All data packed into a single `rgba32uint` texture
+</td>
+<td width="50%">
 
-Compression format:
-- R channel: Compressed normal (2x16bit)
-- G channel: Depth + Diffuse R (2x16bit)  
-- B channel: Diffuse GB (2x16bit)
-- A channel: Reserved
+![Cluster Set](img/cluster_set.png)
+<p align="center"><em>Cluster Light Assignment</em></p>
 
-### Z-binning Optimization
-![z_binning](img/z_binning.png)
+</td>
+</tr>
+</table>
 
-Implements Z-binning technique to further optimize clustering performance:
+### G-Buffer Optimization
 
-- **Light Sorting**: Sorts lights by view space depth
-- **Depth Binning**: Pre-computes light ranges for each Z level
-- **Range Limiting**: Only considers lights within specific depth ranges during clustering
+<div align="center">
 
-Core implementation:
-- `src/shaders/z_binning.cs.wgsl` - Z-binning compute shader
-- `src/shaders/bitonic_sort_lights.cs.wgsl` - Light sorting shader
+![G-Buffer](img/g-buffer.png)
 
-### Credits
+**Packed G-Buffer Format:** Single `rgba32uint` texture using `pack2x16snorm`:
+- **X Component:** Octahedron-encoded Normal (2x16 bits)
+- **Y Component:** Depth + Albedo Red (2x16 bits)
+- **Z Component:** Albedo Green + Blue (2x16 bits)
+- **W Component:** Available for additional properties
 
-- [Vite](https://vitejs.dev/)
-- [loaders.gl](https://loaders.gl/)
-- [dat.GUI](https://github.com/dataarts/dat.gui)
-- [stats.js](https://github.com/mrdoob/stats.js)
-- [wgpu-matrix](https://github.com/greggman/wgpu-matrix)
+</div>
 
-### Reference
+---
+
+## ⚡ Performance Analysis
+
+### Rendering Method Comparison
+i just use 1.0 / fps to calculate right now...
+<div align="center">
+
+| Configuration | Naive | Forward+ | Clustered Deferred | Optimized Deferred |
+|---------------|-------|----------|-------------------|-------------------|
+| **500 Lights** | 333.3ms | 45.5ms | 27.0ms | 25.0ms |
+| **1000 Lights** | >1000ms | 83.3ms | 34.5ms | 32.3ms |
+| **2000 Lights** | >1000ms | 166.7ms | 50.0ms | 47.6ms |
+
+</div>
+
+---
+
+## 🛠️ Technical Implementation
+
+### Core Systems
+
+**Light Clustering (Compute Shader)**
+- 3D spatial partitioning with screen-space tiling
+- Per-cluster light assignment with AABB intersection testing
+
+**G-Buffer Management**
+- Multi-render target support for standard deferred
+- Single-texture packed format for optimized variant
+- Custom encoding/decoding for efficient data storage
+
+**Post-Processing Pipeline**
+- Flexible effect chaining architecture
+- Support for grayscale and toon shading effects
+- Render-to-texture with intermediate buffer management
+
+---
+
+<div align="center">
+
+## Credits & References
+
+[Vite](https://vitejs.dev/) • [loaders.gl](https://loaders.gl/) • [dat.GUI](https://github.com/dataarts/dat.gui) • [stats.js](https://github.com/mrdoob/stats.js) • [wgpu-matrix](https://github.com/greggman/wgpu-matrix)
+
+**Technical References:**
 - [A Primer On Efficient Rendering Algorithms & Clustered Shading](https://www.aortiz.me/2018/12/21/CG.html)
 - [Clustered shading evolution in Granite](https://themaister.net/blog/2020/01/10/clustered-shading-evolution-in-granite/)
-- [Forward+ Rendering and Tiled Deferred Shading](https://takahiroharada.files.wordpress.com/2015/04/forward_plus.pdf)
-- [Octahedron Normal Vector Encoding](https://knarkowicz.wordpress.com/2014/04/16/octahedron-normal-vector-encoding/)
+
+---
+
+*Built with WebGPU • Optimized for Modern Browsers • Real-time Performance*
+
+</div>

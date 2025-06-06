@@ -167,7 +167,7 @@ export class ClusteredDeferredOptimizationRenderer extends renderer.Renderer {
             vertex: {
                 module: renderer.device.createShaderModule({
                     label: "fullscreen vertex shader",
-                    code: shaders.clusteredDeferredOptimizationFullscreenVertSrc
+                    code: shaders.clusteredDeferredFullscreenVertSrc
                 }),
                 entryPoint: "main"
             },
@@ -268,13 +268,13 @@ export class ClusteredDeferredOptimizationRenderer extends renderer.Renderer {
         gBufferPass.end();
     }
 
-    encodeFullscreenPass(encoder: GPUCommandEncoder, canvasTextureView: GPUTextureView)
+    encodeFullscreenPass(encoder: GPUCommandEncoder, targetView: GPUTextureView)
     {
         const fullscreenPass = encoder.beginRenderPass({
             label: "fullscreen lighting calculation",
             colorAttachments: [
                 {
-                    view: canvasTextureView,
+                    view: targetView,
                     clearValue: [0, 0, 0, 1],
                     loadOp: "clear",
                     storeOp: "store"
@@ -292,17 +292,16 @@ export class ClusteredDeferredOptimizationRenderer extends renderer.Renderer {
         fullscreenPass.end();
     }
 
-    override draw() {
+    override drawScene(targetView: GPUTextureView) {
         // TODO-3: run the Forward+ rendering pass:
         // - run the clustering compute shader
         // - run the G-buffer pass, outputting position, albedo, and normals
         // - run the fullscreen pass, which reads from the G-buffer and performs lighting calculations
         const encoder = renderer.device.createCommandEncoder();
-        const canvasTextureView = renderer.context.getCurrentTexture().createView();
 
         this.lights.doLightClustering(encoder);
         this.encodeGBufferPass(encoder);
-        this.encodeFullscreenPass(encoder, canvasTextureView);
+        this.encodeFullscreenPass(encoder, targetView);
 
         renderer.device.queue.submit([encoder.finish()]);
     }

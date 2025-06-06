@@ -43,12 +43,13 @@ fn main(in: FragmentInput) -> @location(0) vec4f {
     let position = reconstructViewPosition(texCoord, depth);
     
     let index = (getClusterIndex(position, in.fragPos));
-    let cluster = clusterSet.clusters[index];
+    let cluster_ptr = &clusterSet.clusters[index];
     
     var totalLightContrib = vec3f(0, 0, 0);
-    for (var lightIdx = 0u; lightIdx < cluster.numLights; lightIdx++) {
-        let light = lightSet.lights[cluster.lightIndices[lightIdx]];
-        totalLightContrib += calculateLightContrib(light, position, normal);
+    for (var i = 0u; i < (*cluster_ptr).numLights; i++) {
+        let lightIdx = (*cluster_ptr).lightIndices[i];
+        let light_ptr = &lightSet.lights[lightIdx];
+        totalLightContrib += calculateLightContrib(*light_ptr, position, normal);
     }
 
     let finalColor = albedo.rgb * totalLightContrib;

@@ -2,6 +2,7 @@ import { Scene } from './stage/scene';
 import { Lights } from './stage/lights';
 import { Camera } from './stage/camera';
 import { Stage } from './stage/stage';
+import * as shaders from './shaders/shaders';
 
 export var canvas: HTMLCanvasElement;
 export var canvasFormat: GPUTextureFormat;
@@ -35,7 +36,9 @@ export async function initWebGPU() {
         throw new Error("WebGPU not supported on this browser");
     }
 
-    const adapter = await navigator.gpu.requestAdapter();
+    const adapter = await navigator.gpu.requestAdapter({
+        powerPreference: "high-performance"
+    });
     if (!adapter)
     {
         throw new Error("no appropriate GPUAdapter found");
@@ -125,6 +128,21 @@ export abstract class Renderer {
     bUseRenderBundles: boolean = false;
     protected quadVertexBuffer: GPUBuffer;
     protected quadIndexBuffer: GPUBuffer;
+    
+    // Post-processing
+    protected bUsePostProcessing: boolean = false;
+    protected useGrayEffect: boolean = false;
+    protected useToonEffect: boolean = false;
+    
+    protected renderTexture: GPUTexture | null = null;
+    protected renderTextureView: GPUTextureView | null = null;
+    protected intermediateTexture: GPUTexture | null = null;
+    protected intermediateTextureView: GPUTextureView | null = null;
+
+    protected postProcessPipelines: Map<string, GPURenderPipeline> = new Map();
+    protected postProcessBindGroupLayout: GPUBindGroupLayout | null = null;
+    protected postProcessBindGroup: GPUBindGroup | null = null;
+    protected intermediateBindGroup: GPUBindGroup | null = null;
 
     constructor(stage: Stage) {
         this.scene = stage.scene;
@@ -153,11 +171,207 @@ export abstract class Renderer {
         device.queue.writeBuffer(this.quadIndexBuffer, 0, quadIndex);
     }
 
+    protected initPostProcessing() {
+        this.bUsePostProcessing = true;
+        this.renderTexture = device.createTexture({
+            size: [canvas.width, canvas.height],
+            format: canvasFormat,
+            usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING
+        });
+        this.renderTextureView = this.renderTexture.createView();
+
+        // Create intermediate texture for effect chaining
+        this.intermediateTexture = device.createTexture({
+            size: [canvas.width, canvas.height],
+            format: canvasFormat,
+            usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING
+        });
+        this.intermediateTextureView = this.intermediateTexture.createView();
+
+        // Create bind group layout for post-processing (using bindGroup_gbuffer)
+        this.postProcessBindGroupLayout = device.createBindGroupLayout({
+            label: "post process bind group layout",
+            entries: [
+                {
+                    binding: 0,
+                    visibility: GPUShaderStage.FRAGMENT,
+                    texture: {}
+                },
+                {
+                    binding: 1,
+                    visibility: GPUShaderStage.FRAGMENT,
+                    sampler: {}
+                }
+            ]
+        });
+
+        // Create sampler
+        const sampler = device.createSampler({
+            magFilter: 'linear',
+            minFilter: 'linear'
+        });
+
+        // Create bind group for render texture
+        this.postProcessBindGroup = device.createBindGroup({
+            label: "post process bind group",
+            layout: this.postProcessBindGroupLayout,
+            entries: [
+                {
+                    binding: 0,
+                    resource: this.renderTextureView!
+                },
+                {
+                    binding: 1,
+                    resource: sampler
+                }
+            ]
+        });
+
+        // Create bind group for intermediate texture
+        this.intermediateBindGroup = device.createBindGroup({
+            label: "intermediate bind group",
+            layout: this.postProcessBindGroupLayout,
+            entries: [
+                {
+                    binding: 0,
+                    resource: this.intermediateTextureView!
+                },
+                {
+                    binding: 1,
+                    resource: sampler
+                }
+            ]
+        });
+
+        // Create post-processing pipelines for different effects
+        this.createPostProcessPipeline('gray', shaders.grayFragSrc);
+        this.createPostProcessPipeline('toon', shaders.toonFragSrc);
+    }
+
+    protected createPostProcessPipeline(effectName: string, fragmentShaderCode: string) {
+        const pipeline = device.createRenderPipeline({
+            layout: device.createPipelineLayout({
+                label: `${effectName} post process pipeline layout`,
+                bindGroupLayouts: [this.postProcessBindGroupLayout!]
+            }),
+            vertex: {
+                module: device.createShaderModule({
+                    label: "post process vert shader",
+                    code: shaders.clusteredDeferredFullscreenVertSrc
+                })
+            },
+            fragment: {
+                module: device.createShaderModule({
+                    label: `${effectName} post process frag shader`,
+                    code: fragmentShaderCode
+                }),
+                targets: [
+                    {
+                        format: canvasFormat
+                    }
+                ]
+            }
+        });
+        this.postProcessPipelines.set(effectName, pipeline);
+    }
+
+    setPostProcessingEffects(useGray: boolean, useToon: boolean) {
+        this.useGrayEffect = useGray;
+        this.useToonEffect = useToon;
+    }
+
     stop(): void {
         cancelAnimationFrame(this.frameRequestId);
     }
 
-    protected abstract draw(): void;
+    protected abstract drawScene(targetView: GPUTextureView): void;
+
+    protected draw(): void {
+        const canvasTextureView = context.getCurrentTexture().createView();
+        
+        // Determine render target
+        const targetView = this.bUsePostProcessing ? this.renderTextureView! : canvasTextureView;
+        
+        // Render scene to target
+        this.drawScene(targetView);
+        
+        // Post-processing passes if enabled
+        if (this.bUsePostProcessing && this.postProcessBindGroup && (this.useGrayEffect || this.useToonEffect)) {
+            const encoder = device.createCommandEncoder();
+            
+            let currentInputBindGroup = this.postProcessBindGroup;
+            let currentOutputView = canvasTextureView;
+            
+            // If both effects are enabled, we need to chain them
+            if (this.useGrayEffect && this.useToonEffect) {
+                // First pass: gray effect to intermediate texture
+                const grayPipeline = this.postProcessPipelines.get('gray');
+                if (grayPipeline && this.intermediateTextureView) {
+                    const grayPass = encoder.beginRenderPass({
+                        label: "gray post process pass",
+                        colorAttachments: [
+                            {
+                                view: this.intermediateTextureView,
+                                clearValue: [0, 0, 0, 0],
+                                loadOp: "clear",
+                                storeOp: "store"
+                            }
+                        ]
+                    });
+                    grayPass.setPipeline(grayPipeline);
+                    grayPass.setBindGroup(0, currentInputBindGroup);
+                    grayPass.draw(3);
+                    grayPass.end();
+                    
+                    // Update for second pass
+                    currentInputBindGroup = this.intermediateBindGroup!;
+                }
+                
+                // Second pass: toon effect to canvas
+                const toonPipeline = this.postProcessPipelines.get('toon');
+                if (toonPipeline) {
+                    const toonPass = encoder.beginRenderPass({
+                        label: "toon post process pass",
+                        colorAttachments: [
+                            {
+                                view: canvasTextureView,
+                                clearValue: [0, 0, 0, 0],
+                                loadOp: "clear",
+                                storeOp: "store"
+                            }
+                        ]
+                    });
+                    toonPass.setPipeline(toonPipeline);
+                    toonPass.setBindGroup(0, currentInputBindGroup);
+                    toonPass.draw(3);
+                    toonPass.end();
+                }
+            } else {
+                // Single effect
+                const effectName = this.useGrayEffect ? 'gray' : 'toon';
+                const pipeline = this.postProcessPipelines.get(effectName);
+                if (pipeline) {
+                    const postProcessPass = encoder.beginRenderPass({
+                        label: `${effectName} post process pass`,
+                        colorAttachments: [
+                            {
+                                view: canvasTextureView,
+                                clearValue: [0, 0, 0, 0],
+                                loadOp: "clear",
+                                storeOp: "store"
+                            }
+                        ]
+                    });
+                    postProcessPass.setPipeline(pipeline);
+                    postProcessPass.setBindGroup(0, currentInputBindGroup);
+                    postProcessPass.draw(3);
+                    postProcessPass.end();
+                }
+            }
+            
+            device.queue.submit([encoder.finish()]);
+        }
+    }
 
     // CHECKITOUT: this is the main rendering loop
     private onFrame(time: number) {

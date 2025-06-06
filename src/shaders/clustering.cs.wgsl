@@ -7,7 +7,6 @@
 @group(${bindGroup_scene}) @binding(0) var<uniform> cameraUniforms: CameraUniforms;
 @group(${bindGroup_scene}) @binding(1) var<storage, read> lightSet: LightSet;
 @group(${bindGroup_scene}) @binding(2) var<storage, read_write> clusterSet: ClusterSet;
-@group(${bindGroup_scene}) @binding(3) var<storage, read> zBin: ZBin;
 
 // ------------------------------------
 // Calculating cluster bounds:
@@ -84,7 +83,8 @@ fn sqDistPointAABB(point: vec3f, min: vec3f, max: vec3f) -> f32 {
 
 fn testSphereAABB(light: u32, min: vec3f, max: vec3f) -> bool {
     let radius = ${lightRadius};
-    let center = lightSet.lights[light].pos;
+    let light_ptr = &lightSet.lights[light];
+    let center = (*light_ptr).pos;
     let squaredDistance = sqDistPointAABB(center, min, max);
 
     return squaredDistance <= f32(radius * radius);
@@ -134,30 +134,16 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let minPointAABB = min(min(minPointNear, minPointFar), min(maxPointNear, maxPointFar));
     let maxPointAABB = max(max(minPointNear, minPointFar), max(maxPointNear, maxPointFar));
     
-    // Z-Binning
-    let bounds = unpackBounds(zBin.bins[global_id.z]);
-    let startLightIdx = bounds.x;
-    let endLightIdx = bounds.y;
-
-    // Iterating within lights
-    clusterSet.clusters[index].numLights = 0u;
-    // for (var lightIdx = 0u; lightIdx < lightSet.numLights; lightIdx++) {
-    //     if(testSphereAABB(lightIdx, minPointAABB, maxPointAABB)){
-    //         let numLights = clusterSet.clusters[index].numLights;
-    //         clusterSet.clusters[index].lightIndices[numLights] = lightIdx;
-    //         clusterSet.clusters[index].numLights++;
-    //     }
-    //     if(clusterSet.clusters[index].numLights >= ${maxNumLights}) {
-    //         break;
-    //     }
-    // }
-    for (var lightIdx = startLightIdx; lightIdx < endLightIdx; lightIdx++) {
+    // Iterating through all lights
+    let cluster_ptr = &clusterSet.clusters[index];
+    (*cluster_ptr).numLights = 0u;
+    for (var lightIdx = 0u; lightIdx < lightSet.numLights; lightIdx++) {
         if(testSphereAABB(lightIdx, minPointAABB, maxPointAABB)){
-            let numLights = clusterSet.clusters[index].numLights;
-            clusterSet.clusters[index].lightIndices[numLights] = lightIdx;
-            clusterSet.clusters[index].numLights++;
+            let numLights = (*cluster_ptr).numLights;
+            (*cluster_ptr).lightIndices[numLights] = lightIdx;
+            (*cluster_ptr).numLights++;
         }
-        if(clusterSet.clusters[index].numLights >= ${maxNumLights}) {
+        if((*cluster_ptr).numLights >= ${maxNumLights}) {
             break;
         }
     }
