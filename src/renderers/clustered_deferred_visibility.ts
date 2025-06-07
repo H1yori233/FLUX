@@ -11,13 +11,9 @@ export class ClusteredDeferredVisibilityRenderer extends renderer.Renderer {
     depthTexture: GPUTexture;
     depthTextureView: GPUTextureView;
 
-    // G-buffer textures and related views
-    gBufferTextures: {
-        pack: GPUTexture;
-    };
-    gBufferTextureViews: {
-        pack: GPUTextureView;
-    };
+    // Visibility buffer texture
+    visibilityTexture: GPUTexture;
+    visibilityTextureView: GPUTextureView;
 
     gBufferBindGroupLayout: GPUBindGroupLayout;
     gBufferBindGroup: GPUBindGroup;
@@ -85,17 +81,13 @@ export class ClusteredDeferredVisibilityRenderer extends renderer.Renderer {
             height: renderer.canvas.height
         };
         
-        this.gBufferTextures = {
-            pack: renderer.device.createTexture({
-                label: "pack G-buffer",
+        this.visibilityTexture = renderer.device.createTexture({
+            label: "visibility buffer",
                 size: textureSize,
-                format: "rgba32uint",
+            format: "r32uint",
                 usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING
-            })
-        };
-        this.gBufferTextureViews = {
-            pack: this.gBufferTextures.pack.createView()
-        };
+        });
+        this.visibilityTextureView = this.visibilityTexture.createView();
         
         this.gBufferBindGroupLayout = renderer.device.createBindGroupLayout({
             label: "G-buffer bind group layout",
@@ -114,7 +106,7 @@ export class ClusteredDeferredVisibilityRenderer extends renderer.Renderer {
             entries: [
                 {
                     binding: 0,
-                    resource: this.gBufferTextureViews.pack
+                    resource: this.visibilityTextureView
                 }
             ]
         });
@@ -131,18 +123,18 @@ export class ClusteredDeferredVisibilityRenderer extends renderer.Renderer {
             }),
             vertex: {
                 module: renderer.device.createShaderModule({
-                    label: "naive vertex shader",
-                    code: shaders.naiveVertSrc  // Reuse naive vertex shader
+                    label: "clustered deferred visibility vertex shader",
+                    code: shaders.clusteredDeferredVisibilityVertSrc
                 }),
                 buffers: [renderer.vertexBufferLayout]
             },
             fragment: {
                 module: renderer.device.createShaderModule({
                     label: "G-buffer fragment shader",
-                    code: shaders.clusteredDeferredOptimizationFragSrc
+                    code: shaders.clusteredDeferredVisibilityFragSrc
                 }),
                 targets: [
-                    { format: "rgba32uint" }
+                    { format: "r32uint" }
                 ]
             },
             depthStencil: {
@@ -174,7 +166,7 @@ export class ClusteredDeferredVisibilityRenderer extends renderer.Renderer {
             fragment: {
                 module: renderer.device.createShaderModule({
                     label: "fullscreen fragment shader",
-                    code: shaders.clusteredDeferredOptimizationFullscreenFragSrc
+                    code: shaders.clusteredDeferredVisibilityFullscreenFragSrc
                 }),
                 targets: [
                     { format: renderer.canvasFormat }
@@ -184,7 +176,7 @@ export class ClusteredDeferredVisibilityRenderer extends renderer.Renderer {
 
         // Create G-buffer render bundle
         let gBufferBundleEncoder = renderer.device.createRenderBundleEncoder({
-            colorFormats: ["rgba32uint"],
+            colorFormats: ["r32uint"],
             depthStencilFormat: "depth24plus",
         });
           
@@ -244,7 +236,7 @@ export class ClusteredDeferredVisibilityRenderer extends renderer.Renderer {
             label: "G-buffer rendering",
             colorAttachments: [
                 {
-                    view: this.gBufferTextureViews.pack,
+                    view: this.visibilityTextureView,
                     clearValue: [0, 0, 0, 1],
                     loadOp: "clear",
                     storeOp: "store"

@@ -5,31 +5,19 @@ struct FragmentInput {
     @builtin(position) fragPos: vec4f,
     @location(0) pos: vec3f,
     @location(1) nor: vec3f,
-    @location(2) uv: vec2f
+    @location(2) uv: vec2f,
+    @location(3) @interpolate(flat) objectId: u32,
+    @location(4) @interpolate(flat) triangleId: u32
 }
 
 struct GBufferOutput {
-    @location(0) pack: vec4u
+    @location(0) index: u32
 }
 
 @fragment
 fn main(in: FragmentInput) -> GBufferOutput {
-    let diffuseColor = textureSample(diffuseTex, diffuseTexSampler, in.uv);
-    
-    // Early discard for transparent pixels
-    if (diffuseColor.a < 0.5) {
-        discard;
-    }
-    
     var output: GBufferOutput;
-    let normal = normalize(in.nor);
-    let depth = in.fragPos.z;
-    let encodedNormal = encodeNormal(normal);
-
-    let packedNormal = pack2x16snorm(encodedNormal);
-    let packedD_R = pack2x16snorm(vec2f(depth, diffuseColor.r));
-    let packedGB = pack2x16snorm(vec2f(diffuseColor.g, diffuseColor.b));
-    output.pack = vec4u(packedNormal, packedD_R, packedGB, 0);
+    output.index = (in.objectId << 16u) + (in.triangleId & 0xFFFFu);
     
     return output;
-} 
+}
