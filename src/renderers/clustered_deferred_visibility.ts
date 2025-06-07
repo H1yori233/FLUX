@@ -14,6 +14,12 @@ export class ClusteredDeferredVisibilityRenderer extends renderer.Renderer {
     // Visibility buffer texture
     visibilityTexture: GPUTexture;
     visibilityTextureView: GPUTextureView;
+    
+    // buffers
+    // indexBuffer: GPUBuffer;
+    // indexBufferView: GPUBufferView;
+    // vertexBuffer: GPUBuffer;
+    // vertexBufferView: GPUBufferView;
 
     gBufferBindGroupLayout: GPUBindGroupLayout;
     gBufferBindGroup: GPUBindGroup;
@@ -88,7 +94,7 @@ export class ClusteredDeferredVisibilityRenderer extends renderer.Renderer {
                 usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING
         });
         this.visibilityTextureView = this.visibilityTexture.createView();
-        
+
         this.gBufferBindGroupLayout = renderer.device.createBindGroupLayout({
             label: "G-buffer bind group layout",
             entries: [

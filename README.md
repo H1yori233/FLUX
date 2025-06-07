@@ -29,7 +29,7 @@ WebGPU Forward+ and Clustered Deferred Shading
 
 ## 🎬 Demo Video
 
-[![Demo Video](img/screenshot.png)](TODO)
+[![Demo Video](img/demo.gif)]
 
 > *30+ second demonstration showcasing all rendering modes and effects*
 

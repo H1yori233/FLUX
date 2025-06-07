@@ -3,6 +3,8 @@
 @group(${bindGroup_scene}) @binding(2) var<storage, read> clusterSet: ClusterSet;
 
 @group(${bindGroup_gbuffer}) @binding(0) var visibilityTexture: texture_2d<u32>;
+@group(${bindGroup_gbuffer}) @binding(1) var indexTexture: texture_2d<u32>;
+@group(${bindGroup_gbuffer}) @binding(2) var vertexTexture: texture_2d<u32>;
 
 struct FragmentInput {
     @builtin(position) fragPos: vec4f,
@@ -25,7 +27,6 @@ fn generateTriangleColor(triangleId: u32) -> vec3f {
         0.3 + 0.7 * b
     );
 }
-
 
 @fragment
 fn main(in: FragmentInput) -> @location(0) vec4f {
