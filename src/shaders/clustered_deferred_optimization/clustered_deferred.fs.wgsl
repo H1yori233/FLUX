@@ -1,6 +1,3 @@
-// TODO-3: implement the Clustered Deferred G-buffer fragment shader
-
-// This shader should only store G-buffer information and should not do any shading.
 @group(${bindGroup_material}) @binding(0) var diffuseTex: texture_2d<f32>;
 @group(${bindGroup_material}) @binding(1) var diffuseTexSampler: sampler;
 

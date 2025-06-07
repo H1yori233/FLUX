@@ -6,6 +6,7 @@ import { NaiveRenderer } from './renderers/naive';
 import { ForwardPlusRenderer } from './renderers/forward_plus';
 import { ClusteredDeferredRenderer } from './renderers/clustered_deferred';
 import { ClusteredDeferredOptimizationRenderer } from './renderers/clustered_deferred_optimization';
+import { ClusteredDeferredVisibilityRenderer } from './renderers/clustered_deferred_visibility';
 
 import { setupLoaders, Scene } from './stage/scene';
 import { Lights } from './stage/lights';
@@ -36,7 +37,7 @@ var renderer: Renderer | undefined;
 
 class guiStatsStruct
 {
-    UseRenderBundle : boolean = false;
+    UseRenderBundle : boolean = true;
     UsePostProcessing : boolean = false;
     UseGray : boolean = false;
     UseToon : boolean = false;
@@ -87,6 +88,9 @@ function setRenderer(mode: string) {
         case renderModes.clusteredDeferredOptimization:
             renderer = new ClusteredDeferredOptimizationRenderer(stage);
             break;
+        case renderModes.clusteredDeferredVisibility:
+            renderer = new ClusteredDeferredVisibilityRenderer(stage);
+            break;
     }
     
     // Apply current settings to new renderer
@@ -103,7 +107,8 @@ const renderModes = {
     naive: 'naive', 
     forwardPlus: 'forward+', 
     clusteredDeferred: 'clustered deferred',
-    clusteredDeferredOptimization: 'clustered deferred optimization'
+    clusteredDeferredOptimization: 'clustered deferred optimization',
+    clusteredDeferredVisibility: 'clustered deferred visibility'
 };
 let renderModeController = gui.add({ mode: renderModes.forwardPlus }, 'mode', renderModes);
 renderModeController.onChange(setRenderer);

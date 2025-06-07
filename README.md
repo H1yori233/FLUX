@@ -1,28 +1,18 @@
 WebGPU Forward+ and Clustered Deferred Shading
 ======================
 
-<div align="center">
-
 **University of Pennsylvania, CIS 565: GPU Programming and Architecture, Project 4**
-
-*H1yori233* • [GitHub](https://github.com/H1yori233) • [Portfolio](https://h1yori233.github.io) • [LinkedIn](https://www.linkedin.com/in/kaiqin-kong-4709b0357/)
-
-**Tested on:** Google Chrome 137.0.7107.0 (canary) on Windows 11, AMD Ryzen 7 5800H @ 3.20GHz 16GB, RTX 3050 Laptop 4GB
+* H1yori233
+  * [Github](https://github.com/H1yori233)
+  * h1yori233.github.io
+  * https://www.linkedin.com/in/kaiqin-kong-4709b0357/
+* Tested on: **Google Chrome 137.0.7107.0, canary** on Windows 11, AMD Ryzen 7 5800H @ 3.20GHz 16GB, RTX 3050 Laptop 4GB
 
 ---
 
-### 🌐 [**Live Demo**](https://h1yori233.github.io/WebGPU-Forward-Plus-and-Clustered-Deferred/)
-
-</div>
-
-<table>
-<tr>
-<td width="50%">
+## 🌐 [Live Demo](https://h1yori233.github.io/WebGPU-Forward-Plus-and-Clustered-Deferred/)
 
 ![Screenshot](img/screenshot.png)
-
-</td>
-<td width="50%">
 
 ## Features Implemented
 
@@ -37,12 +27,6 @@ WebGPU Forward+ and Clustered Deferred Shading
 - Render Bundles Support
 - Post-Processing Pipeline
 
-</td>
-</tr>
-</table>
-
----
-
 ## 🎬 Demo Video
 
 [![Demo Video](img/screenshot.png)](TODO)
@@ -55,8 +39,6 @@ WebGPU Forward+ and Clustered Deferred Shading
 
 ### Rendering Pipeline Comparison
 
-<div align="center">
-
 | Method | G-Buffer | Clustering | Lighting Pass |
 |--------|----------|------------|---------------|
 | **Naive** | ❌ | ❌ | Per-fragment all lights |
@@ -64,30 +46,15 @@ WebGPU Forward+ and Clustered Deferred Shading
 | **Clustered Deferred** | ✅ Multi-target | ✅ | Fullscreen pass |
 | **Optimized Deferred** | ✅ Single texture | ✅ | Fullscreen pass |
 
-</div>
-
 ### Light Clustering Visualization
 
-<table>
-<tr>
-<td width="50%">
-
 ![Clustering](img/clustering.png)
-<p align="center"><em>3D Light Clustering</em></p>
-
-</td>
-<td width="50%">
+*3D Light Clustering*
 
 ![Cluster Set](img/cluster_set.png)
-<p align="center"><em>Cluster Light Assignment</em></p>
-
-</td>
-</tr>
-</table>
+*Cluster Light Assignment*
 
 ### G-Buffer Optimization
-
-<div align="center">
 
 ![G-Buffer](img/g-buffer.png)
 
@@ -97,23 +64,16 @@ WebGPU Forward+ and Clustered Deferred Shading
 - **Z Component:** Albedo Green + Blue (2x16 bits)
 - **W Component:** Available for additional properties
 
-</div>
-
----
-
 ## ⚡ Performance Analysis
 
 ### Rendering Method Comparison
 i just use 1.0 / fps to calculate right now...
-<div align="center">
 
 | Configuration | Naive | Forward+ | Clustered Deferred | Optimized Deferred |
 |---------------|-------|----------|-------------------|-------------------|
 | **500 Lights** | 333.3ms | 45.5ms | 27.0ms | 25.0ms |
 | **1000 Lights** | >1000ms | 83.3ms | 34.5ms | 32.3ms |
 | **2000 Lights** | >1000ms | 166.7ms | 50.0ms | 47.6ms |
-
-</div>
 
 ---
 
@@ -135,20 +95,11 @@ i just use 1.0 / fps to calculate right now...
 - Support for grayscale and toon shading effects
 - Render-to-texture with intermediate buffer management
 
----
-
-<div align="center">
-
-## Credits & References
+## Credits
 
 [Vite](https://vitejs.dev/) • [loaders.gl](https://loaders.gl/) • [dat.GUI](https://github.com/dataarts/dat.gui) • [stats.js](https://github.com/mrdoob/stats.js) • [wgpu-matrix](https://github.com/greggman/wgpu-matrix)
 
-**Technical References:**
+## References
 - [A Primer On Efficient Rendering Algorithms & Clustered Shading](https://www.aortiz.me/2018/12/21/CG.html)
 - [Clustered shading evolution in Granite](https://themaister.net/blog/2020/01/10/clustered-shading-evolution-in-granite/)
 
----
-
-*Built with WebGPU • Optimized for Modern Browsers • Real-time Performance*
-
-</div>
