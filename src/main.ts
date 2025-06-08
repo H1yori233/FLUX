@@ -38,9 +38,15 @@ var renderer: Renderer | undefined;
 class guiStatsStruct
 {
     UseRenderBundle : boolean = true;
-    UsePostProcessing : boolean = false;
     UseGray : boolean = false;
     UseToon : boolean = false;
+    UseBloom : boolean = false;
+    BloomThreshold : number = 0.85;
+    BloomIntensity : number = 1.2;
+    BloomStrength : number = 0.5;
+    ToonLevels : number = 4.0;
+    ToonEdgeThreshold : number = 0.92;
+    ToonEdgeIntensity : number = 1.15;
 }
 const guiStats = new guiStatsStruct();
 
@@ -51,26 +57,52 @@ function setUseRenderBundle() {
     }
 }
 
-function setUsePostProcessing() {
+function setPostProcessEffects() {
     if (renderer) {
-        if (guiStats.UsePostProcessing) {
-            (renderer as any).initPostProcessing?.();
-        } else {
+        const anyEffectEnabled = guiStats.UseGray || guiStats.UseToon || guiStats.UseBloom;
+        
+        if (anyEffectEnabled && (renderer as any).initPostProcessing) {
+            (renderer as any).initPostProcessing();
+        }
+        
+        if ((renderer as any).setPostProcessingEffects) {
+            (renderer as any).setPostProcessingEffects(guiStats.UseGray, guiStats.UseToon, guiStats.UseBloom);
+        }
+        
+        if (!anyEffectEnabled && (renderer as any).bUsePostProcessing !== undefined) {
             (renderer as any).bUsePostProcessing = false;
         }
     }
 }
 
-function setPostProcessEffects() {
-    if (renderer && (renderer as any).setPostProcessingEffects) {
-        (renderer as any).setPostProcessingEffects(guiStats.UseGray, guiStats.UseToon);
+function setBloomParameters() {
+    if (renderer && (renderer as any).setBloomParameters) {
+        (renderer as any).setBloomParameters(guiStats.BloomThreshold, guiStats.BloomIntensity, guiStats.BloomStrength);
+    }
+}
+
+function setToonParameters() {
+    if (renderer && (renderer as any).setToonParameters) {
+        (renderer as any).setToonParameters(guiStats.ToonLevels, guiStats.ToonEdgeThreshold, guiStats.ToonEdgeIntensity);
     }
 }
 
 gui.add(guiStats, "UseRenderBundle").onChange(() => setUseRenderBundle());
-gui.add(guiStats, "UsePostProcessing").onChange(() => setUsePostProcessing());
 gui.add(guiStats, "UseGray").onChange(() => setPostProcessEffects());
 gui.add(guiStats, "UseToon").onChange(() => setPostProcessEffects());
+gui.add(guiStats, "UseBloom").onChange(() => setPostProcessEffects());
+
+// Create Bloom folder
+const bloomFolder = gui.addFolder('Bloom Parameters');
+bloomFolder.add(guiStats, "BloomThreshold", 0.0, 1.0, 0.01).onChange(() => setBloomParameters());
+bloomFolder.add(guiStats, "BloomIntensity", 0.0, 5.0, 0.1).onChange(() => setBloomParameters());
+bloomFolder.add(guiStats, "BloomStrength", 0.0, 2.0, 0.05).onChange(() => setBloomParameters());
+
+// Create Toon folder
+const toonFolder = gui.addFolder('Toon Parameters');
+toonFolder.add(guiStats, "ToonLevels", 2.0, 8.0, 1.0).onChange(() => setToonParameters());
+toonFolder.add(guiStats, "ToonEdgeThreshold", 0.01, 1.0, 0.01).onChange(() => setToonParameters());
+toonFolder.add(guiStats, "ToonEdgeIntensity", 0.1, 2.0, 0.01).onChange(() => setToonParameters());
 
 function setRenderer(mode: string) {
     renderer?.stop();
@@ -96,10 +128,13 @@ function setRenderer(mode: string) {
     // Apply current settings to new renderer
     if (renderer) {
         renderer.bUseRenderBundles = guiStats.UseRenderBundle;
-        if (guiStats.UsePostProcessing) {
+        if (guiStats.UseGray || guiStats.UseToon || guiStats.UseBloom) {
             (renderer as any).initPostProcessing?.();
+            (renderer as any).setPostProcessingEffects?.(guiStats.UseGray, guiStats.UseToon, guiStats.UseBloom);
         }
-        (renderer as any).setPostProcessingEffects?.(guiStats.UseGray, guiStats.UseToon);
+        
+        (renderer as any).setBloomParameters?.(guiStats.BloomThreshold, guiStats.BloomIntensity, guiStats.BloomStrength);
+        (renderer as any).setToonParameters?.(guiStats.ToonLevels, guiStats.ToonEdgeThreshold, guiStats.ToonEdgeIntensity);
     }
 }
 

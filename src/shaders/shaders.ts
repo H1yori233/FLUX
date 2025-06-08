@@ -26,6 +26,9 @@ import clusteringComputeRaw from './clustering.cs.wgsl?raw';
 
 import grayFragRaw from './post_processing/gray.fs.wgsl?raw';
 import toonFragRaw from './post_processing/toon.fs.wgsl?raw';
+import gaussianBlurFragRaw from './post_processing/gaussian_blur.fs.wgsl?raw';
+import extractBrightnessFragRaw from './post_processing/extract_brightness.fs.wgsl?raw';
+import blendFragRaw from './post_processing/blend.fs.wgsl?raw';
 
 // CONSTANTS (for use in shaders)
 // =================================
@@ -93,3 +96,6 @@ export const clusteringComputeSrc: string = processShaderRaw(clusteringComputeRa
 
 export const grayFragSrc: string = processShaderRaw(grayFragRaw);
 export const toonFragSrc: string = processShaderRaw(toonFragRaw);
+export const gaussianBlurFragSrc: string = processShaderRaw(gaussianBlurFragRaw);
+export const extractBrightnessFragSrc: string = processShaderRaw(extractBrightnessFragRaw);
+export const blendFragSrc: string = processShaderRaw(blendFragRaw);
